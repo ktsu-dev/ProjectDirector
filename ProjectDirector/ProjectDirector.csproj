@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <ItemGroup>
+    <PackageReference Include="ktsu.io.AppDataStorage" Version="1.0.0-alpha.10" />
+    <PackageReference Include="ktsu.io.ImGuiApp" Version="1.0.0-alpha.2" />
+    <PackageReference Include="ktsu.io.StrongPaths" Version="1.0.0-alpha.5" />
+    <PackageReference Include="ktsu.io.TrivialWinForms" Version="1.0.0-alpha.2" />
+    <PackageReference Include="Octokit" Version="9.1.0" />
+  </ItemGroup>
+</Project>
