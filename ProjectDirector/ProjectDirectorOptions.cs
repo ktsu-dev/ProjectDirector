@@ -18,9 +18,10 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 
 	public Dictionary<string, bool> PanelStates { get; init; } = new();
 	public Dictionary<string, List<float>> DividerStates { get; init; } = new();
-	public Dictionary<GitHubOwnerName, Octokit.User> KnownGitHubOwners { get; init; } = new();
-	public HashSet<GitHubOwnerName> ChosenGitHubOwners { get; init; } = new();
-	public DictionaryOfHashSets<GitHubOwnerName, Octokit.Repository> KnownGitHubRepos { get; init; } = new();
-	public DictionaryOfHashSets<GitHubOwnerName, GitHubRepoName> ChosenGitHubRepos { get; init; } = new();
+	public Dictionary<GitHubOwnerName, Octokit.User> CachedGitHubOwners { get; init; } = new();
+	public HashSet<GitHubOwnerName> SelectedGitHubOwners { get; init; } = new();
+	public DictionaryOfHashSets<GitHubOwnerName, Octokit.Repository> CachedGitHubRepos { get; init; } = new();
+	public HashSet<GitHubRepoName> ClonedGitHubRepos { get; init; } = new();
+	public GitHubRepoName SelectedRepo { get; set; } = new();
 }
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

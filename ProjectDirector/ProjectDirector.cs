@@ -52,8 +52,6 @@ internal sealed class ProjectDirector
 	}
 
 	// Dont call this directly, call QueueSaveOptions instead so that we can debounce the saves and avoid saving multiple times per frame or multiple frames in a row
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Performance", "CA1869:Cache and reuse 'JsonSerializerOptions' instances", Justification = "<Pending>")]
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0059:Unnecessary assignment of a value", Justification = "<Pending>")]
 	private void SaveOptionsInternal() => Options.Save();
 
 	private void QueueSaveOptions() => SaveOptionsQueuedTime = DateTime.Now;
@@ -90,7 +88,7 @@ internal sealed class ProjectDirector
 		if (ImGui.Button("Add Owner", new Vector2(FieldWidth, 0)))
 		{
 			var newName = (GitHubOwnerName)TextPrompt.Show("New Owner Name?");
-			Options.ChosenGitHubOwners.Add(newName);
+			Options.SelectedGitHubOwners.Add(newName);
 			RefreshOwner(newName);
 		}
 
@@ -99,15 +97,60 @@ internal sealed class ProjectDirector
 
 	private void ShowRightPanel(float dt)
 	{
-		ShowCollapsiblePanel($"3", () => { });
+		ImGui.TextUnformatted($"Selected Repo: {Options.SelectedRepo}");
+
+		ShowCollapsiblePanel($"Git Actions", () =>
+		{
+			if (!Options.ClonedGitHubRepos.Contains(Options.SelectedRepo))
+			{
+				if (ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
+				{
+				}
+			}
+			else
+			{
+				if (ImGui.Button("Pull", new Vector2(FieldWidth, 0)))
+				{
+				}
+				ImGui.SameLine();
+				ImGui.Button("Commit", new Vector2(FieldWidth, 0));
+				ImGui.SameLine();
+				ImGui.Button("Push", new Vector2(FieldWidth, 0));
+			}
+		});
 		ShowCollapsiblePanel($"4", () => { });
 	}
 
-	private static void ShowCollapsiblePanel(string name, Action contentDelegate)
+	private void ShowCollapsiblePanel(string name, Action contentDelegate)
 	{
-		if (ImGui.CollapsingHeader(name))
+		if (!Options.PanelStates.TryGetValue(name, out bool open))
+		{
+			open = true;
+			Options.PanelStates[name] = open;
+			QueueSaveOptions();
+		}
+
+		var flags = ImGuiTreeNodeFlags.None;
+		if (open)
+		{
+			flags |= ImGuiTreeNodeFlags.DefaultOpen;
+		}
+
+		bool wasOpen = open;
+		if (ImGui.CollapsingHeader(name, flags))
 		{
 			contentDelegate?.Invoke();
+			open = true;
+		}
+		else
+		{
+			open = false;
+		}
+
+		if (open != wasOpen)
+		{
+			Options.PanelStates[name] = open;
+			QueueSaveOptions();
 		}
 	}
 
@@ -153,7 +196,7 @@ internal sealed class ProjectDirector
 
 	private void ShowOwners()
 	{
-		foreach (var owner in Options.ChosenGitHubOwners)
+		foreach (var owner in Options.SelectedGitHubOwners)
 		{
 			ShowCollapsiblePanel(owner, () => { ShowRepos(owner); });
 		}
@@ -161,20 +204,27 @@ internal sealed class ProjectDirector
 
 	private void ShowRepos(GitHubOwnerName owner)
 	{
-		if (Options.KnownGitHubRepos.TryGetValue(owner, out var repos))
+		if (Options.CachedGitHubRepos.TryGetValue(owner, out var repos))
 		{
 			foreach (var repo in repos)
 			{
-				var repoName = (GitHubRepoName)repo.Name;
-				bool isChecked = Options.ChosenGitHubRepos.Contains(owner, repoName);
-				ImGui.Checkbox(repo.Name, ref isChecked);
+				var repoName = (GitHubRepoName)repo.FullName;
+				bool isChecked = Options.ClonedGitHubRepos.Contains(repoName);
+				ImGui.Checkbox($"##cb{repoName}", ref isChecked);
+				ImGui.SameLine();
+				bool isSelected = Options.SelectedRepo == repoName;
+				if (ImGui.Selectable(repo.Name, ref isSelected))
+				{
+					Options.SelectedRepo = repoName;
+					QueueSaveOptions();
+				}
 			}
 		}
 	}
 
 	private void RefreshOwners()
 	{
-		var knownOwners = Options.KnownGitHubOwners.ToList();
+		var knownOwners = Options.CachedGitHubOwners.ToList();
 		foreach (var (owner, _) in knownOwners)
 		{
 			RefreshOwner(owner);
@@ -184,7 +234,7 @@ internal sealed class ProjectDirector
 	private void RefreshOwner(GitHubOwnerName owner)
 	{
 		var newUser = GitHubClient.User.Get(owner).GetAwaiter().GetResult();
-		Options.KnownGitHubOwners[owner] = newUser;
+		Options.CachedGitHubOwners[owner] = newUser;
 		RefreshRepos(owner);
 		QueueSaveOptions();
 	}
@@ -192,25 +242,25 @@ internal sealed class ProjectDirector
 	private void RefreshRepos(GitHubOwnerName owner)
 	{
 		var repos = GitHubClient.Repository.GetAllForUser(owner).GetAwaiter().GetResult();
-		if (Options.KnownGitHubRepos.TryGetValue(owner, out var oldRepos))
+		if (Options.CachedGitHubRepos.TryGetValue(owner, out var oldRepos))
 		{
 			oldRepos.Clear();
 		}
 
 		foreach (var repo in repos)
 		{
-			Options.KnownGitHubRepos.Add(owner, repo);
+			Options.CachedGitHubRepos.Add(owner, repo);
 
-			var repoName = (GitHubRepoName)repo.Name;
-			var repoPath = Options.DevDirectory / (RelativeDirectoryPath)(string)owner / (RelativeDirectoryPath)repo.Name;
+			var repoName = (GitHubRepoName)repo.FullName;
+			var repoPath = Options.DevDirectory / (RelativeDirectoryPath)repo.FullName;
 
 			if (Directory.Exists(repoPath))
 			{
-				Options.ChosenGitHubRepos.Add(owner, repoName);
+				Options.ClonedGitHubRepos.Add(repoName);
 			}
 			else
 			{
-				Options.ChosenGitHubRepos.Remove(owner, repoName);
+				Options.ClonedGitHubRepos.Remove(repoName);
 			}
 		}
 
