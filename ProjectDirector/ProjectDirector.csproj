@@ -2,7 +2,7 @@
   <ItemGroup>
     <PackageReference Include="ktsu.io.AppDataStorage" Version="1.0.0-alpha.11" />
     <PackageReference Include="ktsu.io.Extensions" Version="1.0.0-alpha.6" />
-    <PackageReference Include="ktsu.io.ImGuiApp" Version="1.0.0-alpha.4" />
+    <PackageReference Include="ktsu.io.ImGuiApp" Version="1.0.0-alpha.6" />
     <PackageReference Include="ktsu.io.ImGuiWidgets" Version="1.0.0-alpha.5" />
     <PackageReference Include="ktsu.io.TrivialWinForms" Version="1.0.0-alpha.2" />
     <PackageReference Include="LibGit2Sharp" Version="0.29.0" />
