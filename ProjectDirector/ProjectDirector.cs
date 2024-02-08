@@ -328,6 +328,7 @@ internal sealed class ProjectDirector
 				if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
 				{
 					Options.SelectedRepo = repoName;
+					UpdateSimalarRepos(repo);
 					QueueSaveOptions();
 				}
 			}
@@ -455,4 +456,67 @@ internal sealed class ProjectDirector
 	}
 
 	private static FullyQualifiedLocalRepoPath MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath localPath) => (FullyQualifiedLocalRepoPath)Path.GetFullPath(localPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+
+	private Dictionary<FullyQualifiedLocalRepoPath, Dictionary<string, int>> FindSimilarRepos(GitRepository repo)
+	{
+		var similarRepos = new Dictionary<FullyQualifiedLocalRepoPath, Dictionary<string, int>>();
+
+		try
+		{
+			using var gitRepo = new LibGit2Sharp.Repository(repo.LocalPath);
+			var fileList = gitRepo.Index.Select(x => x.Path);
+
+			foreach (var (_, otherRepo) in Options.Repos)
+			{
+				if (repo != otherRepo)
+				{
+					try
+					{
+						using var otherGitRepo = new LibGit2Sharp.Repository(otherRepo.LocalPath);
+						var otherFileList = otherGitRepo.Index.Select(x => x.Path);
+						var matches = fileList.Intersect(otherFileList).ToCollection();
+						similarRepos.Remove(otherRepo.LocalPath);
+						foreach (string match in matches)
+						{
+							//use LibGit2Sharp to compare files from different repos and count the lines that are different
+							//var objectId = gitRepo.Index[match].Id;
+							//var otherObjectId = otherGitRepo.Index[match].Id;
+							//var blob = gitRepo.Lookup(objectId) as LibGit2Sharp.Blob;
+							//var otherBlob = otherGitRepo.Lookup(otherObjectId) as LibGit2Sharp.Blob;
+							//var diff = gitRepo.Diff.Compare(blob, otherBlob);
+							//int linesDifferent = diff.LinesAdded + diff.LinesDeleted;
+							//similarRepos[otherRepo.LocalPath][match] = linesDifferent;
+
+						}
+					}
+					catch (LibGit2Sharp.RepositoryNotFoundException)
+					{
+					}
+				}
+			}
+		}
+		catch (LibGit2Sharp.RepositoryNotFoundException)
+		{
+		}
+
+		return similarRepos;
+	}
+
+	private void UpdateSimalarRepos(GitRepository repo) => repo.SimilarRepos = FindSimilarRepos(repo);
+
+	//private void ShowSimilarRepos(GitRepository repo)
+	//{
+	//	if (Options.Repos.TryGetValue(repo.LocalPath, out var otherRepo))
+	//	{
+	//		var similarRepos = FindSimilarRepos(repo);
+	//		foreach (var (otherRepoPath, matches) in similarRepos)
+	//		{
+	//			ImGui.TextUnformatted($"Similar Files in {otherRepoPath}");
+	//			foreach (var match in matches)
+	//			{
+	//				ImGui.TextUnformatted(match);
+	//			}
+	//		}
+	//	}
+	//}
 }

@@ -15,6 +15,9 @@ public abstract class GitRepository
 
 	public bool IsCloned => Directory.Exists(LocalPath);
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "<Pending>")]
+	public Dictionary<FullyQualifiedLocalRepoPath, Dictionary<string, int>> SimilarRepos { get; set; } = new();
+
 	public static GitRepository? Create(GitRemotePath remotePath, FullyQualifiedLocalRepoPath localPath)
 	{
 		return GitHubRepository.IsRemotePathValid(remotePath)
