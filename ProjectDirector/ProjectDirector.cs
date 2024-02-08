@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Numerics;
 using System.Runtime.Versioning;
 using System.Text;
+using DiffPlex;
 using ImGuiNET;
 using ktsu.io.Extensions;
 using ktsu.io.ImGuiApp;
@@ -475,18 +476,14 @@ internal sealed class ProjectDirector
 						using var otherGitRepo = new LibGit2Sharp.Repository(otherRepo.LocalPath);
 						var otherFileList = otherGitRepo.Index.Select(x => x.Path);
 						var matches = fileList.Intersect(otherFileList).ToCollection();
+						var fileContents = matches.ToDictionary(x => x, x => File.ReadAllText(Path.Combine(repo.LocalPath, x)));
+						var otherFileContents = matches.ToDictionary(x => x, x => File.ReadAllText(Path.Combine(otherRepo.LocalPath, x)));
 						similarRepos.Remove(otherRepo.LocalPath);
 						foreach (string match in matches)
 						{
-							//use LibGit2Sharp to compare files from different repos and count the lines that are different
-							//var objectId = gitRepo.Index[match].Id;
-							//var otherObjectId = otherGitRepo.Index[match].Id;
-							//var blob = gitRepo.Lookup(objectId) as LibGit2Sharp.Blob;
-							//var otherBlob = otherGitRepo.Lookup(otherObjectId) as LibGit2Sharp.Blob;
-							//var diff = gitRepo.Diff.Compare(blob, otherBlob);
-							//int linesDifferent = diff.LinesAdded + diff.LinesDeleted;
-							//similarRepos[otherRepo.LocalPath][match] = linesDifferent;
-
+							var diff = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
+							int linesDifferent = diff.DiffBlocks.Sum(x => x.DeleteCountA + x.InsertCountB);
+							similarRepos[otherRepo.LocalPath][match] = linesDifferent;
 						}
 					}
 					catch (LibGit2Sharp.RepositoryNotFoundException)
