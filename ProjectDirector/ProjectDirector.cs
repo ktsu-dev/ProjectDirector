@@ -108,7 +108,7 @@ internal sealed class ProjectDirector
 						var fetchOptions = new LibGit2Sharp.FetchOptions();
 						var origin = localRepo.Network.Remotes["origin"];
 						var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
-						LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repoName}");
+						//LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repoName}");
 					});
 
 					task.Start();
@@ -188,6 +188,11 @@ internal sealed class ProjectDirector
 					ImGui.SameLine();
 					ImGui.Button("Push", new Vector2(FieldWidth, 0));
 				}
+			});
+
+			ShowCollapsiblePanel($"Similar Repos", () =>
+			{
+				ShowSimilarRepos(repo);
 			});
 		}
 	}
@@ -483,6 +488,12 @@ internal sealed class ProjectDirector
 						{
 							var diff = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
 							int linesDifferent = diff.DiffBlocks.Sum(x => x.DeleteCountA + x.InsertCountB);
+							if (!similarRepos.TryGetValue(otherRepo.LocalPath, out var similarRepo))
+							{
+								similarRepo = new();
+								similarRepos[otherRepo.LocalPath] = similarRepo;
+							}
+
 							similarRepos[otherRepo.LocalPath][match] = linesDifferent;
 						}
 					}
@@ -501,19 +512,17 @@ internal sealed class ProjectDirector
 
 	private void UpdateSimalarRepos(GitRepository repo) => repo.SimilarRepos = FindSimilarRepos(repo);
 
-	//private void ShowSimilarRepos(GitRepository repo)
-	//{
-	//	if (Options.Repos.TryGetValue(repo.LocalPath, out var otherRepo))
-	//	{
-	//		var similarRepos = FindSimilarRepos(repo);
-	//		foreach (var (otherRepoPath, matches) in similarRepos)
-	//		{
-	//			ImGui.TextUnformatted($"Similar Files in {otherRepoPath}");
-	//			foreach (var match in matches)
-	//			{
-	//				ImGui.TextUnformatted(match);
-	//			}
-	//		}
-	//	}
-	//}
+	private void ShowSimilarRepos(GitRepository repo)
+	{
+		var sortedRepos = repo.SimilarRepos
+		.OrderByDescending(kvp => kvp.Value.Sum(x => x.Value > 0 ? 30 : 70))
+		.ToCollection();
+
+		foreach (var (otherRepoPath, matches) in sortedRepos)
+		{
+			var exactDuplicates = matches.Where(kvp => kvp.Value == 0).ToCollection();
+			Options.ClonedRepos.TryGetValue(otherRepoPath, out var repoName);
+			ImGui.TextUnformatted($"{repoName} {matches.Count} matches ({exactDuplicates.Count} exact)");
+		}
+	}
 }
