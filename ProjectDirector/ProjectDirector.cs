@@ -146,8 +146,8 @@ internal sealed class ProjectDirector
 
 						task.ContinueWith((t) =>
 						{
-							Options.ClonedRepos.Add(repo.LocalPath, Options.SelectedRepo);
-							QueueSaveOptions();
+							UpdateClonedStatus(repo);
+							UpdateSimalarRepos(repo);
 						},
 						new CancellationToken(),
 						TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
@@ -334,6 +334,7 @@ internal sealed class ProjectDirector
 				if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
 				{
 					Options.SelectedRepo = repoName;
+					UpdateClonedStatus(repo);
 					UpdateSimalarRepos(repo);
 					QueueSaveOptions();
 				}
@@ -392,35 +393,44 @@ internal sealed class ProjectDirector
 	private void UpdateClonedStatus()
 	{
 		bool changed = false;
-		foreach (var (repoName, repoOptions) in Options.Repos)
+		foreach (var (_, repo) in Options.Repos)
 		{
-			var repoPath = repoOptions.LocalPath;
-			bool wasCloned = Options.ClonedRepos.ContainsKey(repoPath);
-			bool isCloned = true;
-			try
-			{
-				using var repo = new LibGit2Sharp.Repository(repoPath);
-			}
-			catch (LibGit2Sharp.RepositoryNotFoundException)
-			{
-				isCloned = false;
-			}
-
-			changed |= wasCloned != isCloned;
-			if (isCloned)
-			{
-				Options.ClonedRepos[repoPath] = repoName;
-			}
-			else
-			{
-				Options.ClonedRepos.Remove(repoPath);
-			}
+			changed |= UpdateClonedStatus(repo);
 		}
 
 		if (changed)
 		{
 			QueueSaveOptions();
 		}
+	}
+
+	private bool UpdateClonedStatus(GitRepository repo)
+	{
+		var repoPath = repo.LocalPath;
+		bool wasCloned = Options.ClonedRepos.ContainsKey(repoPath);
+		bool isCloned = true;
+		try
+		{
+			using var _ = new LibGit2Sharp.Repository(repoPath);
+		}
+		catch (LibGit2Sharp.RepositoryNotFoundException)
+		{
+			isCloned = false;
+		}
+
+		if (isCloned)
+		{
+			if (repo is GitHubRepository gitHubRepo)
+			{
+				Options.ClonedRepos[repoPath] = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
+			}
+		}
+		else
+		{
+			Options.ClonedRepos.Remove(repoPath);
+		}
+
+		return wasCloned != isCloned;
 	}
 
 	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(Octokit.Repository repo) => (FullyQualifiedGitHubRepoName)repo.FullName.Replace('/', '.');
