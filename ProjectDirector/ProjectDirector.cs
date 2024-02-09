@@ -391,10 +391,23 @@ internal sealed class ProjectDirector
 
 	private void UpdateClonedStatus()
 	{
+		bool changed = false;
 		foreach (var (repoName, repoOptions) in Options.Repos)
 		{
 			var repoPath = repoOptions.LocalPath;
-			if (Directory.Exists(repoPath))
+			bool wasCloned = Options.ClonedRepos.ContainsKey(repoPath);
+			bool isCloned = true;
+			try
+			{
+				using var repo = new LibGit2Sharp.Repository(repoPath);
+			}
+			catch (LibGit2Sharp.RepositoryNotFoundException)
+			{
+				isCloned = false;
+			}
+
+			changed |= wasCloned != isCloned;
+			if (isCloned)
 			{
 				Options.ClonedRepos[repoPath] = repoName;
 			}
@@ -404,7 +417,10 @@ internal sealed class ProjectDirector
 			}
 		}
 
-		QueueSaveOptions();
+		if (changed)
+		{
+			QueueSaveOptions();
+		}
 	}
 
 	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(Octokit.Repository repo) => (FullyQualifiedGitHubRepoName)repo.FullName.Replace('/', '.');
