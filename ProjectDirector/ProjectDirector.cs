@@ -1,6 +1,7 @@
 namespace ktsu.io.ProjectDirector;
 
 using System.Diagnostics;
+using System.Globalization;
 using System.Numerics;
 using System.Runtime.Versioning;
 using System.Text;
@@ -114,6 +115,20 @@ internal sealed class ProjectDirector
 					task.Start();
 				}
 			}
+		}
+	}
+
+	private void SwitchRepo(GitRepository repo)
+	{
+		if (repo is GitHubRepository gitHubRepo)
+		{
+			var repoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
+			Options.SelectedRepo = repoName;
+			QueueSaveOptions();
+		}
+		else
+		{
+			throw new InvalidOperationException("Only GitHub Repos are supported at this time");
 		}
 	}
 
@@ -325,19 +340,26 @@ internal sealed class ProjectDirector
 	{
 		foreach (var (repoName, repo) in Options.Repos)
 		{
-			if (repo is GitHubRepository gitHubRepo && gitHubRepo.OwnerName == owner)
+			if (repo is GitHubRepository gitHubRepo)
 			{
-				bool isChecked = Options.ClonedRepos.ContainsKey(repo.LocalPath);
-				ImGui.Checkbox($"##cb{repoName}", ref isChecked);
-				ImGui.SameLine();
-				bool isSelected = Options.SelectedRepo == repoName;
-				if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
+				if (gitHubRepo.OwnerName == owner)
 				{
-					Options.SelectedRepo = repoName;
-					UpdateClonedStatus(repo);
-					UpdateSimalarRepos(repo);
-					QueueSaveOptions();
+					bool isChecked = Options.ClonedRepos.ContainsKey(repo.LocalPath);
+					ImGui.Checkbox($"##cb{repoName}", ref isChecked);
+					ImGui.SameLine();
+					bool isSelected = Options.SelectedRepo == repoName;
+					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
+					{
+						SwitchRepo(repo);
+						UpdateClonedStatus(repo);
+						UpdateSimalarRepos(repo);
+						QueueSaveOptions();
+					}
 				}
+			}
+			else
+			{
+				ImGui.Selectable(((string)repo.LocalPath).RemovePrefix(Options.DevDirectory + "\\"));
 			}
 		}
 	}
@@ -380,6 +402,10 @@ internal sealed class ProjectDirector
 						gitHubRepo.OwnerName = owner;
 						gitHubRepo.RepoName = (GitHubRepoName)remoteRepo.Name;
 					}
+					else
+					{
+						throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+					}
 				}
 			}
 
@@ -404,6 +430,7 @@ internal sealed class ProjectDirector
 		}
 	}
 
+	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0045:Convert to conditional expression", Justification = "<Pending>")]
 	private bool UpdateClonedStatus(GitRepository repo)
 	{
 		var repoPath = repo.LocalPath;
@@ -423,6 +450,10 @@ internal sealed class ProjectDirector
 			if (repo is GitHubRepository gitHubRepo)
 			{
 				Options.ClonedRepos[repoPath] = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
+			}
+			else
+			{
+				throw new InvalidOperationException("Only GitHub Repos are supported at this time");
 			}
 		}
 		else
@@ -544,11 +575,27 @@ internal sealed class ProjectDirector
 		.OrderByDescending(kvp => kvp.Value.Sum(x => x.Value > 0 ? 30 : 70))
 		.ToCollection();
 
+		ImGui.BeginTable("SimilarRepos", 4, ImGuiTableFlags.Borders);
+		ImGui.TableSetupColumn("Similar Repos", ImGuiTableColumnFlags.WidthStretch, 40);
+		ImGui.TableSetupColumn("Similar", ImGuiTableColumnFlags.None, 3);
+		ImGui.TableSetupColumn("Exact", ImGuiTableColumnFlags.None, 3);
+		ImGui.TableSetupColumn("Diff", ImGuiTableColumnFlags.NoHeaderLabel, 1);
+		ImGui.TableHeadersRow();
+
 		foreach (var (otherRepoPath, matches) in sortedRepos)
 		{
 			var exactDuplicates = matches.Where(kvp => kvp.Value == 0).ToCollection();
 			Options.ClonedRepos.TryGetValue(otherRepoPath, out var repoName);
-			ImGui.TextUnformatted($"{repoName} {matches.Count} matches ({exactDuplicates.Count} exact)");
+			ImGui.TableNextRow();
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted(repoName);
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted(matches.Count.ToString(CultureInfo.InvariantCulture));
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted(exactDuplicates.Count.ToString(CultureInfo.InvariantCulture));
+			ImGui.TableNextColumn();
+			ImGui.ArrowButton($"Diff_{repoName}", ImGuiDir.Right);
 		}
+		ImGui.EndTable();
 	}
 }
