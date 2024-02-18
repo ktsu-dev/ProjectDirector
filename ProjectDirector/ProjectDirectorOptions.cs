@@ -27,6 +27,7 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 	public Dictionary<GitHubOwnerName, Octokit.User> GitHubOwnerInfo { get; init; } = new();
 	public Dictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> ClonedRepos { get; init; } = new();
 	public FullyQualifiedGitHubRepoName SelectedRepo { get; set; } = new();
+	public FullyQualifiedGitHubRepoName CompareRepo { get; set; } = new();
 	public Dictionary<FullyQualifiedGitHubRepoName, GitRepository> Repos { get; init; } = new();
 }
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

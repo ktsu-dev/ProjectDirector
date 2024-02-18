@@ -2,10 +2,10 @@ namespace ktsu.io.ProjectDirector;
 
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
 using System.Numerics;
 using System.Text;
 using DiffPlex;
+using DiffPlex.Model;
 using ImGuiNET;
 using ktsu.io.Extensions;
 using ktsu.io.ImGuiApp;
@@ -58,6 +58,7 @@ internal sealed class ProjectDirector
 			GitHubClient.Credentials = new(Options.GitHubLogin, Options.GitHubPAT);
 		}
 
+		SwitchRepo(Options.Repos[Options.SelectedRepo]);
 		QueueSaveOptions();
 	}
 
@@ -124,6 +125,23 @@ internal sealed class ProjectDirector
 		{
 			var repoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
 			Options.SelectedRepo = repoName;
+			Options.CompareRepo = new();
+			UpdateClonedStatus(repo);
+			UpdateSimilarRepos(repo);
+			QueueSaveOptions();
+		}
+		else
+		{
+			throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+		}
+	}
+
+	private void SwitchComparedRepo(GitRepository repo)
+	{
+		if (repo is GitHubRepository gitHubRepo)
+		{
+			var repoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
+			Options.CompareRepo = repoName;
 			QueueSaveOptions();
 		}
 		else
@@ -164,8 +182,7 @@ internal sealed class ProjectDirector
 
 						task.ContinueWith((t) =>
 						{
-							UpdateClonedStatus(repo);
-							UpdateSimalarRepos(repo);
+							SwitchRepo(repo);
 						},
 						new CancellationToken(),
 						TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
@@ -210,7 +227,15 @@ internal sealed class ProjectDirector
 
 			ShowCollapsiblePanel($"Similar Repos", () =>
 			{
-				ShowSimilarRepos(repo);
+				if (Options.CompareRepo.IsEmpty())
+				{
+					ShowSimilarRepos(repo);
+				}
+				else
+				{
+					ShowComparedRepo(repo);
+				}
+
 			});
 		}
 	}
@@ -358,8 +383,6 @@ internal sealed class ProjectDirector
 					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
 					{
 						SwitchRepo(repo);
-						UpdateClonedStatus(repo);
-						UpdateSimalarRepos(repo);
 						QueueSaveOptions();
 					}
 				}
@@ -527,60 +550,65 @@ internal sealed class ProjectDirector
 
 	private static FullyQualifiedLocalRepoPath MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath localPath) => (FullyQualifiedLocalRepoPath)Path.GetFullPath(localPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
 
-	private Dictionary<FullyQualifiedLocalRepoPath, Dictionary<string, int>> FindSimilarRepos(GitRepository repo)
+	private void UpdateSimilarRepos(GitRepository repo)
 	{
-		var similarRepos = new Dictionary<FullyQualifiedLocalRepoPath, Dictionary<string, int>>();
+		foreach (var (_, otherRepo) in Options.Repos)
+		{
+			if (repo != otherRepo)
+			{
+				var diffs = DiffRepos(repo, otherRepo);
+				if (otherRepo is GitHubRepository gitHubRepo)
+				{
+					var otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
+					repo.SimilarRepoDiffs[otherRepoName] = diffs;
+				}
+				else
+				{
+					throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+				}
+			}
+		}
+	}
 
+	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, GitRepository repoB)
+	{
+		var diffs = new Dictionary<RelativeFilePath, DiffResult>();
 		try
 		{
-			using var gitRepo = new LibGit2Sharp.Repository(repo.LocalPath);
+			using var gitRepo = new LibGit2Sharp.Repository(repoA.LocalPath);
 			var fileList = gitRepo.Index.Select(x => x.Path);
 
-			foreach (var (_, otherRepo) in Options.Repos)
+			if (repoA != repoB)
 			{
-				if (repo != otherRepo)
+				try
 				{
-					try
+					using var otherGitRepo = new LibGit2Sharp.Repository(repoB.LocalPath);
+					var otherFileList = otherGitRepo.Index.Select(x => x.Path);
+					var matches = fileList.Intersect(otherFileList).ToCollection();
+					var fileContents = matches.ToDictionary(x => x, x => File.ReadAllText(Path.Combine(repoA.LocalPath, x)));
+					var otherFileContents = matches.ToDictionary(x => x, x => File.ReadAllText(Path.Combine(repoB.LocalPath, x)));
+					foreach (string match in matches)
 					{
-						using var otherGitRepo = new LibGit2Sharp.Repository(otherRepo.LocalPath);
-						var otherFileList = otherGitRepo.Index.Select(x => x.Path);
-						var matches = fileList.Intersect(otherFileList).ToCollection();
-						var fileContents = matches.ToDictionary(x => x, x => File.ReadAllText(Path.Combine(repo.LocalPath, x)));
-						var otherFileContents = matches.ToDictionary(x => x, x => File.ReadAllText(Path.Combine(otherRepo.LocalPath, x)));
-						similarRepos.Remove(otherRepo.LocalPath);
-						foreach (string match in matches)
-						{
-							var diff = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
-							int linesDifferent = diff.DiffBlocks.Sum(x => x.DeleteCountA + x.InsertCountB);
-							if (!similarRepos.TryGetValue(otherRepo.LocalPath, out var similarRepo))
-							{
-								similarRepo = new();
-								similarRepos[otherRepo.LocalPath] = similarRepo;
-							}
-
-							similarRepos[otherRepo.LocalPath][match] = linesDifferent;
-						}
+						diffs[(RelativeFilePath)match] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
 					}
-					catch (LibGit2Sharp.RepositoryNotFoundException)
-					{
-					}
+				}
+				catch (LibGit2Sharp.RepositoryNotFoundException)
+				{
 				}
 			}
 		}
 		catch (LibGit2Sharp.RepositoryNotFoundException)
 		{
 		}
-
-		return similarRepos;
+		return diffs;
 	}
-
-	private void UpdateSimalarRepos(GitRepository repo) => repo.SimilarRepos = FindSimilarRepos(repo);
 
 	private void ShowSimilarRepos(GitRepository repo)
 	{
-		var sortedRepos = repo.SimilarRepos
-		.OrderByDescending(kvp => kvp.Value.Sum(x => x.Value > 0 ? 30 : 70))
-		.ToCollection();
+		var sortedRepos = repo.SimilarRepoDiffs
+			.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Sum(x => x.Value.DiffBlocks.Sum(y => y.InsertCountB + y.DeleteCountA) > 0 ? 30 : 70))
+			.OrderByDescending(kvp => kvp.Value)
+			.Select(kvp => kvp.Key);
 
 		ImGui.BeginTable("SimilarRepos", 4, ImGuiTableFlags.Borders);
 		ImGui.TableSetupColumn("Similar Repos", ImGuiTableColumnFlags.WidthStretch, 40);
@@ -589,19 +617,68 @@ internal sealed class ProjectDirector
 		ImGui.TableSetupColumn("Diff", ImGuiTableColumnFlags.NoHeaderLabel, 1);
 		ImGui.TableHeadersRow();
 
-		foreach (var (otherRepoPath, matches) in sortedRepos)
+		foreach (var otherRepoName in sortedRepos)
 		{
-			var exactDuplicates = matches.Where(kvp => kvp.Value == 0).ToCollection();
-			Options.ClonedRepos.TryGetValue(otherRepoPath, out var repoName);
+			int numExactDuplicates = repo.SimilarRepoDiffs[otherRepoName]
+				.Count(kvp => kvp.Value.DiffBlocks.Count == 0);
+
+			int numMatches = repo.SimilarRepoDiffs[otherRepoName].Count;
+
 			ImGui.TableNextRow();
 			ImGui.TableNextColumn();
-			ImGui.TextUnformatted(repoName);
+			ImGui.TextUnformatted(otherRepoName);
 			ImGui.TableNextColumn();
-			ImGui.TextUnformatted(matches.Count.ToString(CultureInfo.InvariantCulture));
+			ImGui.TextUnformatted($"{numMatches}");
 			ImGui.TableNextColumn();
-			ImGui.TextUnformatted(exactDuplicates.Count.ToString(CultureInfo.InvariantCulture));
+			ImGui.TextUnformatted($"{numExactDuplicates}");
 			ImGui.TableNextColumn();
-			ImGui.ArrowButton($"Diff_{repoName}", ImGuiDir.Right);
+			if (ImGui.ArrowButton($"Diff_{otherRepoName}", ImGuiDir.Right))
+			{
+				SwitchComparedRepo(Options.Repos[otherRepoName]);
+			}
+		}
+		ImGui.EndTable();
+	}
+
+	private void ShowComparedRepo(GitRepository repo)
+	{
+		if (ImGui.Button("Back"))
+		{
+			Options.CompareRepo = new();
+			return;
+		}
+
+		var otherRepo = Options.Repos[Options.CompareRepo];
+		var diffs = repo.SimilarRepoDiffs[Options.CompareRepo];
+		var sortedDiffs = diffs
+			.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.DiffBlocks.Sum(y => y.InsertCountB + y.DeleteCountA))
+			.OrderBy(kvp => kvp.Value)
+			.Where(kvp => kvp.Value > 0)
+			.Select(kvp => kvp.Key);
+
+		ImGui.BeginTable("SimilarFiles", 4, ImGuiTableFlags.Borders);
+		ImGui.TableSetupColumn("Similar Files", ImGuiTableColumnFlags.WidthStretch, 40);
+		ImGui.TableSetupColumn("Deletions", ImGuiTableColumnFlags.None, 4);
+		ImGui.TableSetupColumn("Additions", ImGuiTableColumnFlags.None, 4);
+		ImGui.TableSetupColumn("Diff", ImGuiTableColumnFlags.NoHeaderLabel, 1);
+		ImGui.TableHeadersRow();
+
+		foreach (var filePath in sortedDiffs)
+		{
+			var diff = diffs[filePath];
+
+			ImGui.TableNextRow();
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted($"{filePath}");
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.DeleteCountA)}");
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.InsertCountB)}");
+			ImGui.TableNextColumn();
+			if (ImGui.ArrowButton($"Diff_{filePath}", ImGuiDir.Right))
+			{
+				//SwitchComparedRepo(Options.Repos[otherRepoName]);
+			}
 		}
 		ImGui.EndTable();
 	}

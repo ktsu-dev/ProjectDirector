@@ -1,6 +1,8 @@
 namespace ktsu.io.ProjectDirector;
 
 using System.Text.Json.Serialization;
+using DiffPlex.Model;
+using ktsu.io.StrongPaths;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 [JsonDerivedType(typeof(GitHubRepository), nameof(GitHubRepository))]
@@ -15,8 +17,8 @@ public abstract class GitRepository
 
 	public bool IsCloned => Directory.Exists(LocalPath);
 
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Usage", "CA2227:Collection properties should be read only", Justification = "<Pending>")]
-	public Dictionary<FullyQualifiedLocalRepoPath, Dictionary<string, int>> SimilarRepos { get; set; } = new();
+	[JsonIgnore]
+	public Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> SimilarRepoDiffs { get; } = new();
 
 	public static GitRepository? Create(GitRemotePath remotePath, FullyQualifiedLocalRepoPath localPath)
 	{
