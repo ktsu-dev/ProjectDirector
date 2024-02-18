@@ -1,9 +1,9 @@
 namespace ktsu.io.ProjectDirector;
 
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
-using System.Runtime.Versioning;
 using System.Text;
 using DiffPlex;
 using ImGuiNET;
@@ -11,9 +11,7 @@ using ktsu.io.Extensions;
 using ktsu.io.ImGuiApp;
 using ktsu.io.ImGuiWidgets;
 using ktsu.io.StrongPaths;
-using ktsu.io.TrivialWinForms;
 
-[SupportedOSPlatform("windows")]
 internal sealed class ProjectDirector
 {
 	internal ProjectDirectorOptions Options { get; } = new();
@@ -25,6 +23,8 @@ internal sealed class ProjectDirector
 	private DividerContainer DividerContainerRows { get; }
 	private Octokit.GitHubClient GitHubClient { get; init; }
 	private StringBuilder LogBuilder { get; } = new();
+	private PopupInputString PopupSetDevDirectory { get; } = new();
+	private PopupInputString PopupAddNewGitHubOwner { get; } = new();
 
 	private static void Main(string[] _)
 	{
@@ -135,6 +135,9 @@ internal sealed class ProjectDirector
 	private void Tick(float dt)
 	{
 		DividerContainerCols.Tick(dt);
+
+		PopupSetDevDirectory.ShowIfOpen();
+		PopupAddNewGitHubOwner.ShowIfOpen();
 
 		FetchReposIfRequired();
 		SaveOptionsIfRequired();
@@ -262,19 +265,20 @@ internal sealed class ProjectDirector
 		}
 	}
 
-
 	private void ShowMenu()
 	{
 		if (ImGui.BeginMenu("File"))
 		{
 			if (ImGui.MenuItem("Set Dev Directory"))
 			{
-				string devDirectory = TextPrompt.Show("Set Dev Directory?");
-				if (!string.IsNullOrEmpty(devDirectory))
+				PopupSetDevDirectory.Open("Set Dev Directory?", "Set Dev Directory?", Options.DevDirectory, (string result) =>
 				{
-					Options.DevDirectory = (AbsoluteDirectoryPath)devDirectory;
-					QueueSaveOptions();
-				}
+					if (!string.IsNullOrEmpty(result))
+					{
+						Options.DevDirectory = (AbsoluteDirectoryPath)result;
+						QueueSaveOptions();
+					}
+				});
 			}
 
 			if (ImGui.MenuItem("Explore Dev Directory", !string.IsNullOrEmpty(Options.DevDirectory)))
@@ -294,12 +298,15 @@ internal sealed class ProjectDirector
 
 			if (ImGui.MenuItem("Add New GitHub Owner"))
 			{
-				var ownerName = (GitHubOwnerName)TextPrompt.Show("New Owner Name?");
-				if (!string.IsNullOrEmpty(ownerName))
+				PopupAddNewGitHubOwner.Open("New Owner Name?", "New Owner Name?", "ktsu-io", (string result) =>
 				{
-					Options.GitHubOwners.TryAdd(ownerName, (GitHubPAT)string.Empty);
-					SyncGitHubOwnerInfo(ownerName);
-				}
+					if (!string.IsNullOrEmpty(result))
+					{
+						var newName = (GitHubOwnerName)result;
+						Options.GitHubOwners.TryAdd(newName, (GitHubPAT)string.Empty);
+						SyncGitHubOwnerInfo(newName);
+					}
+				});
 			}
 
 			ImGui.Separator();
