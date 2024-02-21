@@ -46,13 +46,13 @@ internal sealed class ProjectDirector
 		DividerContainerRows.Add("Bottom", 0.20f, ShowBottomPanel);
 		DividerDiff.Add("Left", 0.50f, (dt) =>
 		{
-			var repo = Options.Repos[Options.SelectedRepo];
+			var repo = Options.Repos[Options.BaseRepo];
 			var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
 			ShowDiffLeft(diff);
 		});
 		DividerDiff.Add("Right", 0.50f, (dt) =>
 		{
-			var repo = Options.Repos[Options.SelectedRepo];
+			var repo = Options.Repos[Options.BaseRepo];
 			var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
 			ShowDiffRight(diff);
 		});
@@ -72,8 +72,7 @@ internal sealed class ProjectDirector
 			GitHubClient.Credentials = new(Options.GitHubLogin, Options.GitHubPAT);
 		}
 
-		SwitchRepo(Options.Repos[Options.SelectedRepo]);
-		QueueSaveOptions();
+		RefreshPage();
 	}
 
 	private void WindowResized() => QueueSaveOptions();
@@ -144,42 +143,24 @@ internal sealed class ProjectDirector
 		}
 	}
 
-	private void SwitchRepo(GitRepository repo)
+	private void SwitchPage(FullyQualifiedGitHubRepoName baseRepo)
 	{
-		if (repo is GitHubRepository gitHubRepo)
+		if (Options.Repos.TryGetValue(baseRepo, out var repo))
 		{
-			var repoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
-			Options.SelectedRepo = repoName;
-			Options.CompareRepo = new();
-			Options.CompareFile = new();
 			UpdateClonedStatus(repo);
 			UpdateSimilarRepos(repo);
-			QueueSaveOptions();
 		}
-		else
-		{
-			throw new InvalidOperationException("Only GitHub Repos are supported at this time");
-		}
+
+		SwitchPage(baseRepo, new(), new());
 	}
 
-	private void SwitchComparedRepo(GitRepository repo)
+	private void SwitchPage(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo) => SwitchPage(baseRepo, compareRepo, new());
+	private void SwitchPage(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeFilePath compareFile)
 	{
-		if (repo is GitHubRepository gitHubRepo)
-		{
-			var repoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
-			Options.CompareRepo = repoName;
-			Options.CompareFile = new();
-			QueueSaveOptions();
-		}
-		else
-		{
-			throw new InvalidOperationException("Only GitHub Repos are supported at this time");
-		}
-	}
+		Options.BaseRepo = baseRepo;
+		Options.CompareRepo = compareRepo;
+		Options.CompareFile = compareFile;
 
-	private void SwitchComparedFile(RelativeFilePath filePath)
-	{
-		Options.CompareFile = filePath;
 		QueueSaveOptions();
 	}
 
@@ -196,15 +177,15 @@ internal sealed class ProjectDirector
 
 	private void ShowTopPanel(float dt)
 	{
-		if (Options.Repos.TryGetValue(Options.SelectedRepo, out var repo))
+		if (Options.Repos.TryGetValue(Options.BaseRepo, out var repo))
 		{
-			ImGui.TextUnformatted($"Selected Repo: {Options.SelectedRepo}");
+			ImGui.TextUnformatted($"Selected Repo: {Options.BaseRepo}");
 			ImGui.TextUnformatted($"Local Path: {repo.LocalPath}");
 			ImGui.TextUnformatted($"Remote Path: {repo.RemotePath}");
 
 			ShowCollapsiblePanel($"Git Actions", () =>
 			{
-				if (!Options.ClonedRepos.ContainsValue(Options.SelectedRepo))
+				if (!Options.ClonedRepos.ContainsValue(Options.BaseRepo))
 				{
 					if (ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
 					{
@@ -215,7 +196,7 @@ internal sealed class ProjectDirector
 
 						task.ContinueWith((t) =>
 						{
-							SwitchRepo(repo);
+							RefreshPage();
 						},
 						new CancellationToken(),
 						TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
@@ -274,6 +255,16 @@ internal sealed class ProjectDirector
 				}
 			});
 		}
+	}
+
+	private void RefreshPage()
+	{
+		if (Options.Repos.TryGetValue(Options.BaseRepo, out var repo))
+		{
+			UpdateClonedStatus(repo);
+			UpdateSimilarRepos(repo);
+		}
+		SwitchPage(Options.BaseRepo, Options.CompareRepo, Options.CompareFile);
 	}
 
 	private void ShowBottomPanel(float dt)
@@ -415,11 +406,10 @@ internal sealed class ProjectDirector
 					bool isChecked = Options.ClonedRepos.ContainsKey(repo.LocalPath);
 					ImGui.Checkbox($"##cb{repoName}", ref isChecked);
 					ImGui.SameLine();
-					bool isSelected = Options.SelectedRepo == repoName;
+					bool isSelected = Options.BaseRepo == repoName;
 					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
 					{
-						SwitchRepo(repo);
-						QueueSaveOptions();
+						SwitchPage(repoName);
 					}
 				}
 			}
@@ -670,7 +660,7 @@ internal sealed class ProjectDirector
 			ImGui.TableNextColumn();
 			if (ImGui.ArrowButton($"Diff_{otherRepoName}", ImGuiDir.Right))
 			{
-				SwitchComparedRepo(Options.Repos[otherRepoName]);
+				SwitchPage(Options.BaseRepo, otherRepoName);
 			}
 		}
 		ImGui.EndTable();
@@ -678,7 +668,7 @@ internal sealed class ProjectDirector
 
 	private void ShowComparedRepo(GitRepository repo)
 	{
-		if (ImGui.Button("Back"))
+		if (ImGui.ArrowButton("Back", ImGuiDir.Left))
 		{
 			Options.CompareRepo = new();
 			return;
@@ -713,7 +703,7 @@ internal sealed class ProjectDirector
 			ImGui.TableNextColumn();
 			if (ImGui.ArrowButton($"Diff_{filePath}", ImGuiDir.Right))
 			{
-				SwitchComparedFile(filePath);
+				SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
 			}
 		}
 		ImGui.EndTable();
@@ -721,7 +711,7 @@ internal sealed class ProjectDirector
 
 	private void ShowComparedFile(float dt, GitRepository repo)
 	{
-		if (ImGui.Button("Back"))
+		if (ImGui.ArrowButton("Back", ImGuiDir.Left))
 		{
 			Options.CompareFile = new();
 			return;

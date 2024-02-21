@@ -25,7 +25,7 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 	public Dictionary<GitHubOwnerName, GitHubPAT> GitHubOwners { get; init; } = new();
 	public Dictionary<GitHubOwnerName, Octokit.User> GitHubOwnerInfo { get; init; } = new();
 	public Dictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> ClonedRepos { get; init; } = new();
-	public FullyQualifiedGitHubRepoName SelectedRepo { get; set; } = new();
+	public FullyQualifiedGitHubRepoName BaseRepo { get; set; } = new();
 	public FullyQualifiedGitHubRepoName CompareRepo { get; set; } = new();
 	[JsonIgnore]
 	public RelativeFilePath CompareFile { get; set; } = new();
