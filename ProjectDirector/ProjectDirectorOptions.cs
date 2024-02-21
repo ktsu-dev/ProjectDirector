@@ -1,14 +1,13 @@
 namespace ktsu.io.ProjectDirector;
 
 using System.Collections.Generic;
+using System.Text.Json.Serialization;
 using AppDataStorage;
 using ktsu.io.ImGuiApp;
 using ktsu.io.StrongPaths;
 using ktsu.io.StrongStrings;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-
-
 
 public sealed record class GitRemotePath : StrongStringAbstract<GitRemotePath> { }
 public sealed record class GitRemotePathPrefix : StrongStringAbstract<GitRemotePathPrefix> { }
@@ -28,6 +27,8 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 	public Dictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> ClonedRepos { get; init; } = new();
 	public FullyQualifiedGitHubRepoName SelectedRepo { get; set; } = new();
 	public FullyQualifiedGitHubRepoName CompareRepo { get; set; } = new();
+	[JsonIgnore]
+	public RelativeFilePath CompareFile { get; set; } = new();
 	public Dictionary<FullyQualifiedGitHubRepoName, GitRepository> Repos { get; init; } = new();
 }
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

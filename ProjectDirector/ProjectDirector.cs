@@ -21,6 +21,7 @@ internal sealed class ProjectDirector
 	private TimeSpan SaveOptionsDebounceTime { get; } = TimeSpan.FromSeconds(3);
 	private DividerContainer DividerContainerCols { get; }
 	private DividerContainer DividerContainerRows { get; }
+	private DividerContainer DividerDiff { get; }
 	private Octokit.GitHubClient GitHubClient { get; init; }
 	private StringBuilder LogBuilder { get; } = new();
 	private PopupInputString PopupSetDevDirectory { get; } = new();
@@ -36,12 +37,25 @@ internal sealed class ProjectDirector
 	{
 		Options = ProjectDirectorOptions.LoadOrCreate();
 
+		DividerDiff = new("DiffDivider", DividerResized, DividerLayout.Columns);
 		DividerContainerCols = new("VerticalDivider", DividerResized, DividerLayout.Columns);
 		DividerContainerRows = new("HorizontalDivider", DividerResized, DividerLayout.Rows);
 		DividerContainerCols.Add("Left", 0.25f, ShowLeftPanel);
 		DividerContainerCols.Add("Right", 0.75f, ShowRightPanel);
 		DividerContainerRows.Add("Top", 0.80f, ShowTopPanel);
 		DividerContainerRows.Add("Bottom", 0.20f, ShowBottomPanel);
+		DividerDiff.Add("Left", 0.50f, (dt) =>
+		{
+			var repo = Options.Repos[Options.SelectedRepo];
+			var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+			ShowDiffLeft(diff);
+		});
+		DividerDiff.Add("Right", 0.50f, (dt) =>
+		{
+			var repo = Options.Repos[Options.SelectedRepo];
+			var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+			ShowDiffRight(diff);
+		});
 
 		RestoreDividerStates();
 
@@ -72,9 +86,20 @@ internal sealed class ProjectDirector
 
 	private void RestoreDividerStates()
 	{
+
 		if (Options.DividerStates.TryGetValue(DividerContainerCols.Id, out var sizes))
 		{
 			DividerContainerCols.SetSizesFromList(sizes);
+		}
+
+		if (Options.DividerStates.TryGetValue(DividerContainerRows.Id, out sizes))
+		{
+			DividerContainerRows.SetSizesFromList(sizes);
+		}
+
+		if (Options.DividerStates.TryGetValue(DividerDiff.Id, out sizes))
+		{
+			DividerDiff.SetSizesFromList(sizes);
 		}
 	}
 
@@ -126,6 +151,7 @@ internal sealed class ProjectDirector
 			var repoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
 			Options.SelectedRepo = repoName;
 			Options.CompareRepo = new();
+			Options.CompareFile = new();
 			UpdateClonedStatus(repo);
 			UpdateSimilarRepos(repo);
 			QueueSaveOptions();
@@ -142,12 +168,19 @@ internal sealed class ProjectDirector
 		{
 			var repoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
 			Options.CompareRepo = repoName;
+			Options.CompareFile = new();
 			QueueSaveOptions();
 		}
 		else
 		{
 			throw new InvalidOperationException("Only GitHub Repos are supported at this time");
 		}
+	}
+
+	private void SwitchComparedFile(RelativeFilePath filePath)
+	{
+		Options.CompareFile = filePath;
+		QueueSaveOptions();
 	}
 
 	private void Tick(float dt)
@@ -227,15 +260,18 @@ internal sealed class ProjectDirector
 
 			ShowCollapsiblePanel($"Similar Repos", () =>
 			{
-				if (Options.CompareRepo.IsEmpty())
+				if (!Options.CompareFile.IsEmpty())
 				{
-					ShowSimilarRepos(repo);
+					ShowComparedFile(dt, repo);
 				}
-				else
+				else if (!Options.CompareRepo.IsEmpty())
 				{
 					ShowComparedRepo(repo);
 				}
-
+				else
+				{
+					ShowSimilarRepos(repo);
+				}
 			});
 		}
 	}
@@ -677,9 +713,203 @@ internal sealed class ProjectDirector
 			ImGui.TableNextColumn();
 			if (ImGui.ArrowButton($"Diff_{filePath}", ImGuiDir.Right))
 			{
-				//SwitchComparedRepo(Options.Repos[otherRepoName]);
+				SwitchComparedFile(filePath);
 			}
 		}
 		ImGui.EndTable();
 	}
+
+	private void ShowComparedFile(float dt, GitRepository repo)
+	{
+		if (ImGui.Button("Back"))
+		{
+			Options.CompareFile = new();
+			return;
+		}
+
+		ImGui.SameLine();
+
+		var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+		ShowWholeDiffSummary(diff);
+
+		ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));
+		ImGui.BeginChild("Diff", new(0, 0), border: false, ImGuiWindowFlags.NoDecoration);
+		ImGui.PopStyleVar();
+		DividerDiff.Tick(dt);
+		ImGui.EndChild();
+	}
+
+	private const float DiffColorDesaturate = 0.3f;
+
+	private static readonly Vector4 DiffDeletionLineColor = new(1, DiffColorDesaturate, DiffColorDesaturate, 0.4f);
+	private static readonly Vector4 DiffDeletionFillerLineColor = new(1, DiffColorDesaturate, DiffColorDesaturate, 0.2f);
+	private static readonly Vector4 DiffAdditionLineColor = new(DiffColorDesaturate, 1, DiffColorDesaturate, 0.4f);
+	private static readonly Vector4 DiffAdditionFillerLineColor = new(DiffColorDesaturate, 1, DiffColorDesaturate, 0.2f);
+	private static readonly Vector4 UnchangedLineColor = new(1, 1, 1, 0.1f);
+
+	private static Vector2 ScrollLeft { get; set; }
+	private static Vector2 ScrollRight { get; set; }
+	private static void ShowDiffLeft(DiffResult? diff)
+	{
+		if (diff is null)
+		{
+			return;
+		}
+
+		int i = 0;
+		foreach (var block in diff.DiffBlocks)
+		{
+			ShowDiffBlockSummary(block);
+			if (ImGui.BeginTable($"DiffBlockLeft{i}", 3, ImGuiTableFlags.SizingFixedFit))
+			{
+				// prologue
+				{
+					int startIndex = Math.Max(block.DeleteStartA - 3, 0);
+					int endIndex = block.DeleteStartA;
+					var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
+					ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
+				}
+
+				// body
+				{
+					int startIndex = block.DeleteStartA;
+					int endIndex = startIndex + block.DeleteCountA;
+					var formattedLines = FormatDeletedLines(diff.PiecesOld[startIndex..endIndex]);
+					ShowDiffLines(formattedLines, startIndex, "-", DiffDeletionLineColor);
+
+					int extraLines = Math.Max(0, block.InsertCountB - block.DeleteCountA);
+					ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffAdditionFillerLineColor);
+				}
+
+				// epilogue
+				{
+					int startIndex = block.DeleteStartA + block.DeleteCountA;
+					int endIndex = Math.Min(startIndex + 3, diff.PiecesOld.Length);
+					var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
+					ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
+				}
+			}
+			ImGui.EndTable();
+			ImGui.NewLine();
+
+			++i;
+		}
+
+		// synchronize left and right scrollbars
+		if (ImGui.IsWindowHovered())
+		{
+			ScrollRight = new(ImGui.GetScrollX(), ImGui.GetScrollY());
+		}
+		else
+		{
+			ImGui.SetScrollX(ScrollLeft.X);
+			ImGui.SetScrollY(ScrollLeft.Y);
+		}
+
+		ScrollLeft = new(ImGui.GetScrollX(), ImGui.GetScrollY());
+	}
+
+	private static void ShowDiffRight(DiffResult? diff)
+	{
+		if (diff is null)
+		{
+			return;
+		}
+
+		int i = 0;
+		foreach (var block in diff.DiffBlocks)
+		{
+			ShowDiffBlockSummary(block);
+			if (ImGui.BeginTable($"DiffBlockRight{i}", 3, ImGuiTableFlags.SizingFixedFit))
+			{
+				// prologue
+				{
+					int startIndex = Math.Max(block.InsertStartB - 3, 0);
+					int endIndex = block.InsertStartB;
+					var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
+					ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
+				}
+
+				// body
+				{
+					int startIndex = block.InsertStartB;
+					int endIndex = startIndex + block.InsertCountB;
+					var formattedLines = FormatAddedLines(diff.PiecesNew[startIndex..endIndex]);
+					ShowDiffLines(formattedLines, startIndex, "+", DiffAdditionLineColor);
+
+					int extraLines = Math.Max(0, block.DeleteCountA - block.InsertCountB);
+					ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffDeletionFillerLineColor);
+				}
+
+				// epilogue
+				{
+					int startIndex = block.InsertStartB + block.InsertCountB;
+					int endIndex = Math.Min(startIndex + 3, diff.PiecesNew.Length);
+					var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
+					ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
+				}
+			}
+			ImGui.EndTable();
+			ImGui.NewLine();
+			++i;
+		}
+
+		// synchronize left and right scrollbars
+		if (ImGui.IsWindowHovered())
+		{
+			ScrollLeft = new(ImGui.GetScrollX(), ImGui.GetScrollY());
+		}
+		else
+		{
+			ImGui.SetScrollX(ScrollRight.X);
+			ImGui.SetScrollY(ScrollRight.Y);
+		}
+
+		ScrollRight = new(ImGui.GetScrollX(), ImGui.GetScrollY());
+	}
+
+	private static void ShowDiffLines(IEnumerable<string> lines, int lineIndex, string prefix, Vector4 color)
+	{
+		foreach (string line in lines)
+		{
+			ImGui.TableNextColumn();
+			ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.ColorConvertFloat4ToU32(color));
+			if (lineIndex >= 0)
+			{
+				ImGui.TextUnformatted($"{lineIndex++}");
+			}
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted(prefix);
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted(line);
+		}
+	}
+
+	private static void ShowWholeDiffSummary(DiffResult diff) => ShowDiffSummaryText(diff.DiffBlocks.Sum(x => x.DeleteCountA), diff.DiffBlocks.Sum(x => x.InsertCountB));
+
+	private static void ShowDiffBlockSummary(DiffBlock diff) => ShowDiffSummaryText(diff.DeleteCountA, diff.InsertCountB);
+
+	private static void ShowDiffSummaryText(int linesDeleted, int linesAdded)
+	{
+		int totalModifications = linesDeleted + linesAdded;
+		int displayedModifications = Math.Min(10, totalModifications);
+		int displayedDeletions = (int)Math.Round((double)linesDeleted / totalModifications * displayedModifications, 0);
+		int displayedAdditions = displayedModifications - displayedDeletions;
+
+		ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, 0, 0, 1));
+		ImGui.TextUnformatted($"{new string('-', displayedDeletions)}");
+		ImGui.PopStyleColor();
+		ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(2, 0));
+		ImGui.SameLine();
+		ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0, 1, 0, 1));
+		ImGui.TextUnformatted($"{new string('+', displayedAdditions)}");
+		ImGui.PopStyleColor();
+		ImGui.PopStyleVar();
+	}
+
+	private static IEnumerable<string> FormatLines(IEnumerable<string> lines) => lines.Select(x => x.ReplaceOrdinal("\t", "  ").Trim('\r', '\n'));
+	private static IEnumerable<string> FormatDeletedLines(IEnumerable<string> lines) => FormatLines(lines);
+	private static IEnumerable<string> FormatAddedLines(IEnumerable<string> lines) => FormatLines(lines);
+	private static IEnumerable<string> FormatUnchangedLines(IEnumerable<string> lines) => FormatLines(lines);
+
 }
