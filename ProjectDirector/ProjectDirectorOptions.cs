@@ -29,6 +29,8 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 	public FullyQualifiedGitHubRepoName CompareRepo { get; set; } = new();
 	[JsonIgnore]
 	public RelativeFilePath CompareFile { get; set; } = new();
+	[JsonIgnore]
+	public RelativeDirectoryPath BrowsePath { get; set; } = new();
 	public Dictionary<FullyQualifiedGitHubRepoName, GitRepository> Repos { get; init; } = new();
 }
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

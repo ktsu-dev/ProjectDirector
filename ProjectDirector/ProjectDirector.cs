@@ -1,7 +1,9 @@
 namespace ktsu.io.ProjectDirector;
 
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.IO;
 using System.Numerics;
 using System.Text;
 using DiffPlex;
@@ -26,6 +28,8 @@ internal sealed class ProjectDirector
 	private StringBuilder LogBuilder { get; } = new();
 	private PopupInputString PopupSetDevDirectory { get; } = new();
 	private PopupInputString PopupAddNewGitHubOwner { get; } = new();
+	private Collection<RelativePath> BrowserContentsBase { get; set; } = new();
+	private Collection<RelativePath> BrowserContentsCompare { get; set; } = new();
 
 	private static void Main(string[] _)
 	{
@@ -160,7 +164,14 @@ internal sealed class ProjectDirector
 		Options.BaseRepo = baseRepo;
 		Options.CompareRepo = compareRepo;
 		Options.CompareFile = compareFile;
-
+		if (compareRepo.IsEmpty())
+		{
+			ClearBrowserPath();
+		}
+		else
+		{
+			SwitchBrowserPath(baseRepo, compareRepo, new());
+		}
 		QueueSaveOptions();
 	}
 
@@ -682,11 +693,10 @@ internal sealed class ProjectDirector
 			.Where(kvp => kvp.Value > 0)
 			.Select(kvp => kvp.Key);
 
-		ImGui.BeginTable("SimilarFiles", 4, ImGuiTableFlags.Borders);
+		ImGui.BeginTable("SimilarFiles", 3, ImGuiTableFlags.Borders);
 		ImGui.TableSetupColumn("Similar Files", ImGuiTableColumnFlags.WidthStretch, 40);
 		ImGui.TableSetupColumn("Deletions", ImGuiTableColumnFlags.None, 4);
 		ImGui.TableSetupColumn("Additions", ImGuiTableColumnFlags.None, 4);
-		ImGui.TableSetupColumn("Diff", ImGuiTableColumnFlags.NoHeaderLabel, 1);
 		ImGui.TableHeadersRow();
 
 		foreach (var filePath in sortedDiffs)
@@ -695,18 +705,20 @@ internal sealed class ProjectDirector
 
 			ImGui.TableNextRow();
 			ImGui.TableNextColumn();
-			ImGui.TextUnformatted($"{filePath}");
+			ImGui.Selectable($"{filePath}", selected: false, ImGuiSelectableFlags.SpanAllColumns);
+			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			{
+				SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
+			}
 			ImGui.TableNextColumn();
 			ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.DeleteCountA)}");
 			ImGui.TableNextColumn();
 			ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.InsertCountB)}");
-			ImGui.TableNextColumn();
-			if (ImGui.ArrowButton($"Diff_{filePath}", ImGuiDir.Right))
-			{
-				SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
-			}
 		}
 		ImGui.EndTable();
+
+		ImGui.NewLine();
+		ShowFileBrowser();
 	}
 
 	private void ShowComparedFile(float dt, GitRepository repo)
@@ -902,4 +914,189 @@ internal sealed class ProjectDirector
 	private static IEnumerable<string> FormatAddedLines(IEnumerable<string> lines) => FormatLines(lines);
 	private static IEnumerable<string> FormatUnchangedLines(IEnumerable<string> lines) => FormatLines(lines);
 
+	private void ShowFileBrowser()
+	{
+		var allFilesystemEntries = BrowserContentsBase.Union(BrowserContentsCompare);
+		var directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
+		var files = allFilesystemEntries.Except(directories).ToCollection();
+
+		ImGui.BeginTable("FileBrowser", 3, ImGuiTableFlags.Borders);
+		ImGui.TableSetupColumn("Path", ImGuiTableColumnFlags.WidthStretch, 40);
+		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
+		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
+		ImGui.TableHeadersRow();
+
+		if (!Options.BrowsePath.IsEmpty())
+		{
+			ImGui.TableNextRow();
+			ImGui.TableNextColumn();
+			ImGui.Selectable($"..");
+			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			{
+				string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
+				if (string.IsNullOrEmpty(newPath))
+				{
+					SwitchBrowserPath(Options.BaseRepo, Options.CompareRepo, new());
+				}
+				else
+				{
+					SwitchBrowserPath(Options.BaseRepo, Options.CompareRepo, (RelativeDirectoryPath)newPath);
+				}
+			}
+		}
+
+		foreach (var path in directories)
+		{
+			bool existsInA = BrowserContentsBase.Contains(path);
+			bool existsInB = BrowserContentsCompare.Contains(path);
+
+			ImGui.TableNextRow();
+			ImGui.TableNextColumn();
+			ImGui.Selectable($"{path}");
+			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			{
+				var repoA = Options.Repos[Options.BaseRepo];
+				var repoB = Options.Repos[Options.CompareRepo];
+				if (repoA is GitHubRepository githubRepoA && repoB is GitHubRepository githubRepoB)
+				{
+					SwitchBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), (RelativeDirectoryPath)Path.Combine(Options.BrowsePath, path));
+
+				}
+				else
+				{
+					throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+				}
+			}
+			ImGui.TableNextColumn();
+
+			if (existsInA != existsInB)
+			{
+				if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
+				{
+					Directory.CreateDirectory(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+				}
+				else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
+				{
+					Directory.CreateDirectory(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+				}
+
+				if (ImGui.IsItemHovered())
+				{
+					ImGui.BeginTooltip();
+					ImGui.TextUnformatted(existsInA ? "Give" : "Take");
+					ImGui.EndTooltip();
+				}
+			}
+			ImGui.TableNextColumn();
+			if (existsInA != existsInB)
+			{
+				if (existsInA && ImGui.Button("X##Remove"))
+				{
+					Directory.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+				}
+				else if (existsInB && ImGui.Button("X##Remove"))
+				{
+					Directory.Delete(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+				}
+
+				if (ImGui.IsItemHovered())
+				{
+					ImGui.BeginTooltip();
+					ImGui.TextUnformatted("Delete");
+					ImGui.EndTooltip();
+				}
+			}
+		}
+
+		foreach (var path in files)
+		{
+			bool existsInA = BrowserContentsBase.Contains(path);
+			bool existsInB = BrowserContentsCompare.Contains(path);
+
+			ImGui.TableNextRow();
+			ImGui.TableNextColumn();
+			ImGui.TextUnformatted($"{path}");
+			ImGui.TableNextColumn();
+			if (existsInA != existsInB)
+			{
+				if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
+				{
+					string srcPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
+					string dstPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
+					File.Copy(srcPath, dstPath);
+				}
+				else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
+				{
+					string srcPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
+					string dstPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
+					File.Copy(srcPath, dstPath);
+				}
+
+				if (ImGui.IsItemHovered())
+				{
+					ImGui.BeginTooltip();
+					ImGui.TextUnformatted(existsInA ? "Give" : "Take");
+					ImGui.EndTooltip();
+				}
+			}
+			ImGui.TableNextColumn();
+			if (existsInA != existsInB)
+			{
+				if (existsInA && ImGui.Button("X##Remove"))
+				{
+					File.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+				}
+				else if (existsInB && ImGui.Button("X##Remove"))
+				{
+					File.Delete(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+				}
+
+				if (ImGui.IsItemHovered())
+				{
+					ImGui.BeginTooltip();
+					ImGui.TextUnformatted("Delete");
+					ImGui.EndTooltip();
+				}
+			}
+		}
+		ImGui.EndTable();
+	}
+
+	private void SwitchBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
+	{
+		Options.BrowsePath = newPath;
+		var repoA = Options.Repos[baseRepo];
+		var repoB = Options.Repos[compareRepo];
+
+		static RelativePath formatPath(string path, string prefix) => (RelativePath)(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
+
+		BrowserContentsBase.Clear();
+		BrowserContentsCompare.Clear();
+
+		try
+		{
+			BrowserContentsBase = Directory.EnumerateFileSystemEntries(Path.Combine(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
+		}
+		catch (DirectoryNotFoundException)
+		{
+		}
+
+		try
+		{
+			BrowserContentsCompare = Directory.EnumerateFileSystemEntries(Path.Combine(repoB.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoB.LocalPath)).ToCollection();
+		}
+		catch (DirectoryNotFoundException)
+		{
+		}
+
+		QueueSaveOptions();
+	}
+
+	private void ClearBrowserPath()
+	{
+		Options.BrowsePath = new();
+		BrowserContentsBase.Clear();
+		BrowserContentsCompare.Clear();
+		QueueSaveOptions();
+	}
 }
