@@ -50,15 +50,17 @@ internal sealed class ProjectDirector
 		DividerContainerRows.Add("Bottom", 0.20f, ShowBottomPanel);
 		DividerDiff.Add("Left", 0.50f, (dt) =>
 		{
-			var repo = Options.Repos[Options.BaseRepo];
-			var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
-			ShowDiffLeft(diff);
+			var repoA = Options.Repos[Options.BaseRepo];
+			var repoB = Options.Repos[Options.CompareRepo];
+			var diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+			ShowDiffLeft(repoA, repoB, diff);
 		});
 		DividerDiff.Add("Right", 0.50f, (dt) =>
 		{
-			var repo = Options.Repos[Options.BaseRepo];
-			var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
-			ShowDiffRight(diff);
+			var repoA = Options.Repos[Options.BaseRepo];
+			var repoB = Options.Repos[Options.CompareRepo];
+			var diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+			ShowDiffRight(repoA, repoB, diff);
 		});
 
 		RestoreDividerStates();
@@ -250,21 +252,18 @@ internal sealed class ProjectDirector
 				}
 			});
 
-			ShowCollapsiblePanel($"Similar Repos", () =>
+			if (!Options.CompareFile.IsEmpty())
 			{
-				if (!Options.CompareFile.IsEmpty())
-				{
-					ShowComparedFile(dt, repo);
-				}
-				else if (!Options.CompareRepo.IsEmpty())
-				{
-					ShowComparedRepo(repo);
-				}
-				else
-				{
-					ShowSimilarRepos(repo);
-				}
-			});
+				ShowComparedFile(dt, repo);
+			}
+			else if (!Options.CompareRepo.IsEmpty())
+			{
+				ShowComparedRepo(repo);
+			}
+			else
+			{
+				ShowSimilarRepos(repo);
+			}
 		}
 	}
 
@@ -640,6 +639,48 @@ internal sealed class ProjectDirector
 		return diffs;
 	}
 
+	private static DiffResult DiffSingleFile(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
+	{
+		try
+		{
+			using var gitRepo = new LibGit2Sharp.Repository(repoA.LocalPath);
+
+			if (repoA != repoB)
+			{
+				try
+				{
+					using var otherGitRepo = new LibGit2Sharp.Repository(repoB.LocalPath);
+
+					string fileContents = File.ReadAllText(Path.Combine(repoA.LocalPath, filePath));
+					string otherFileContents = File.ReadAllText(Path.Combine(repoB.LocalPath, filePath));
+					return Differ.Instance.CreateLineDiffs(fileContents, otherFileContents, ignoreWhitespace: false, ignoreCase: false);
+				}
+				catch (LibGit2Sharp.RepositoryNotFoundException)
+				{
+				}
+			}
+		}
+		catch (LibGit2Sharp.RepositoryNotFoundException)
+		{
+		}
+
+		return new(Array.Empty<string>(), Array.Empty<string>(), new List<DiffBlock>());
+	}
+
+	private static void RefreshFileDiff(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
+	{
+		var diff = DiffSingleFile(repoA, repoB, filePath);
+		if (repoB is GitHubRepository gitHubRepo)
+		{
+			var otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
+			repoA.SimilarRepoDiffs[otherRepoName][filePath] = diff;
+		}
+		else
+		{
+			throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+		}
+	}
+
 	private void ShowSimilarRepos(GitRepository repo)
 	{
 		var sortedRepos = repo.SimilarRepoDiffs
@@ -647,11 +688,10 @@ internal sealed class ProjectDirector
 			.OrderByDescending(kvp => kvp.Value)
 			.Select(kvp => kvp.Key);
 
-		ImGui.BeginTable("SimilarRepos", 4, ImGuiTableFlags.Borders);
+		ImGui.BeginTable("SimilarRepos", 3, ImGuiTableFlags.Borders);
 		ImGui.TableSetupColumn("Similar Repos", ImGuiTableColumnFlags.WidthStretch, 40);
 		ImGui.TableSetupColumn("Similar", ImGuiTableColumnFlags.None, 3);
 		ImGui.TableSetupColumn("Exact", ImGuiTableColumnFlags.None, 3);
-		ImGui.TableSetupColumn("Diff", ImGuiTableColumnFlags.NoHeaderLabel, 1);
 		ImGui.TableHeadersRow();
 
 		foreach (var otherRepoName in sortedRepos)
@@ -663,16 +703,15 @@ internal sealed class ProjectDirector
 
 			ImGui.TableNextRow();
 			ImGui.TableNextColumn();
-			ImGui.TextUnformatted(otherRepoName);
+			ImGui.Selectable(otherRepoName, selected: false, ImGuiSelectableFlags.SpanAllColumns);
+			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			{
+				SwitchPage(Options.BaseRepo, otherRepoName);
+			}
 			ImGui.TableNextColumn();
 			ImGui.TextUnformatted($"{numMatches}");
 			ImGui.TableNextColumn();
 			ImGui.TextUnformatted($"{numExactDuplicates}");
-			ImGui.TableNextColumn();
-			if (ImGui.ArrowButton($"Diff_{otherRepoName}", ImGuiDir.Right))
-			{
-				SwitchPage(Options.BaseRepo, otherRepoName);
-			}
 		}
 		ImGui.EndTable();
 	}
@@ -684,6 +723,9 @@ internal sealed class ProjectDirector
 			Options.CompareRepo = new();
 			return;
 		}
+
+		ImGui.SameLine();
+		ImGui.TextUnformatted($"Comparing {Options.BaseRepo} vs {Options.CompareRepo}");
 
 		var otherRepo = Options.Repos[Options.CompareRepo];
 		var diffs = repo.SimilarRepoDiffs[Options.CompareRepo];
@@ -705,7 +747,7 @@ internal sealed class ProjectDirector
 
 			ImGui.TableNextRow();
 			ImGui.TableNextColumn();
-			ImGui.Selectable($"{filePath}", selected: false, ImGuiSelectableFlags.SpanAllColumns);
+			ImGui.Selectable(filePath, selected: false, ImGuiSelectableFlags.SpanAllColumns);
 			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 			{
 				SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
@@ -730,6 +772,8 @@ internal sealed class ProjectDirector
 		}
 
 		ImGui.SameLine();
+		ImGui.TextUnformatted($"Comparing {Options.BaseRepo} vs {Options.CompareRepo}");
+		ImGui.SameLine();
 
 		var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
 		ShowWholeDiffSummary(diff);
@@ -751,7 +795,7 @@ internal sealed class ProjectDirector
 
 	private static Vector2 ScrollLeft { get; set; }
 	private static Vector2 ScrollRight { get; set; }
-	private static void ShowDiffLeft(DiffResult? diff)
+	private void ShowDiffLeft(GitRepository repoA, GitRepository repoB, DiffResult? diff)
 	{
 		if (diff is null)
 		{
@@ -761,6 +805,29 @@ internal sealed class ProjectDirector
 		int i = 0;
 		foreach (var block in diff.DiffBlocks)
 		{
+			if (ImGui.ArrowButton($"DiffTakeLeft{i}", ImGuiDir.Right))
+			{
+				List<string> newLines = new();
+				{
+					int endIndex = block.InsertStartB;
+					newLines.AddRange(diff.PiecesNew[..endIndex]);
+				}
+
+				{
+					int startIndex = block.DeleteStartA;
+					int endIndex = startIndex + block.DeleteCountA;
+					newLines.AddRange(diff.PiecesOld[startIndex..endIndex]);
+				}
+
+				{
+					int startIndex = block.InsertStartB + block.InsertCountB;
+					newLines.AddRange(diff.PiecesNew[startIndex..]);
+				}
+				string newText = string.Join(Environment.NewLine, newLines);
+				File.WriteAllText(Path.Combine(repoB.LocalPath, Options.CompareFile), newText);
+				RefreshFileDiff(repoA, repoB, Options.CompareFile);
+			}
+			ImGui.SameLine();
 			ShowDiffBlockSummary(block);
 			if (ImGui.BeginTable($"DiffBlockLeft{i}", 3, ImGuiTableFlags.SizingFixedFit))
 			{
@@ -811,7 +878,7 @@ internal sealed class ProjectDirector
 		ScrollLeft = new(ImGui.GetScrollX(), ImGui.GetScrollY());
 	}
 
-	private static void ShowDiffRight(DiffResult? diff)
+	private void ShowDiffRight(GitRepository repoA, GitRepository repoB, DiffResult? diff)
 	{
 		if (diff is null)
 		{
@@ -821,6 +888,29 @@ internal sealed class ProjectDirector
 		int i = 0;
 		foreach (var block in diff.DiffBlocks)
 		{
+			if (ImGui.ArrowButton($"DiffTakeRight{i}", ImGuiDir.Left))
+			{
+				List<string> newLines = new();
+				{
+					int endIndex = block.DeleteStartA;
+					newLines.AddRange(diff.PiecesOld[..endIndex]);
+				}
+
+				{
+					int startIndex = block.InsertStartB;
+					int endIndex = startIndex + block.InsertCountB;
+					newLines.AddRange(diff.PiecesNew[startIndex..endIndex]);
+				}
+
+				{
+					int startIndex = block.DeleteStartA + block.DeleteCountA;
+					newLines.AddRange(diff.PiecesOld[startIndex..]);
+				}
+				string newText = string.Join(Environment.NewLine, newLines);
+				File.WriteAllText(Path.Combine(repoA.LocalPath, Options.CompareFile), newText);
+				RefreshFileDiff(repoA, repoB, Options.CompareFile);
+			}
+			ImGui.SameLine();
 			ShowDiffBlockSummary(block);
 			if (ImGui.BeginTable($"DiffBlockRight{i}", 3, ImGuiTableFlags.SizingFixedFit))
 			{
@@ -894,19 +984,26 @@ internal sealed class ProjectDirector
 	private static void ShowDiffSummaryText(int linesDeleted, int linesAdded)
 	{
 		int totalModifications = linesDeleted + linesAdded;
-		int displayedModifications = Math.Min(10, totalModifications);
-		int displayedDeletions = (int)Math.Round((double)linesDeleted / totalModifications * displayedModifications, 0);
-		int displayedAdditions = displayedModifications - displayedDeletions;
+		if (totalModifications > 0)
+		{
+			int displayedModifications = Math.Clamp(totalModifications, 1, 10);
+			int displayedDeletions = (int)Math.Round((double)linesDeleted / totalModifications * displayedModifications, 0);
+			int displayedAdditions = displayedModifications - displayedDeletions;
 
-		ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, 0, 0, 1));
-		ImGui.TextUnformatted($"{new string('-', displayedDeletions)}");
-		ImGui.PopStyleColor();
-		ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(2, 0));
-		ImGui.SameLine();
-		ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0, 1, 0, 1));
-		ImGui.TextUnformatted($"{new string('+', displayedAdditions)}");
-		ImGui.PopStyleColor();
-		ImGui.PopStyleVar();
+			ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, 0, 0, 1));
+			ImGui.TextUnformatted($"{new string('-', displayedDeletions)}");
+			ImGui.PopStyleColor();
+			ImGui.PushStyleVar(ImGuiStyleVar.ItemSpacing, new Vector2(2, 0));
+			ImGui.SameLine();
+			ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(0, 1, 0, 1));
+			ImGui.TextUnformatted($"{new string('+', displayedAdditions)}");
+			ImGui.PopStyleColor();
+			ImGui.PopStyleVar();
+		}
+		else
+		{
+			ImGui.TextUnformatted("No Changes");
+		}
 	}
 
 	private static IEnumerable<string> FormatLines(IEnumerable<string> lines) => lines.Select(x => x.ReplaceOrdinal("\t", "  ").Trim('\r', '\n'));
@@ -952,7 +1049,7 @@ internal sealed class ProjectDirector
 
 			ImGui.TableNextRow();
 			ImGui.TableNextColumn();
-			ImGui.Selectable($"{path}");
+			ImGui.Selectable(path, selected: false, ImGuiSelectableFlags.SpanAllColumns);
 			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 			{
 				var repoA = Options.Repos[Options.BaseRepo];
@@ -1015,7 +1112,7 @@ internal sealed class ProjectDirector
 
 			ImGui.TableNextRow();
 			ImGui.TableNextColumn();
-			ImGui.TextUnformatted($"{path}");
+			ImGui.Selectable(path, selected: false, ImGuiSelectableFlags.SpanAllColumns);
 			ImGui.TableNextColumn();
 			if (existsInA != existsInB)
 			{
