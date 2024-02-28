@@ -34,7 +34,7 @@ internal sealed class ProjectDirector
 	private static void Main(string[] _)
 	{
 		ProjectDirector projectDirector = new();
-		ImGuiApp.Start(nameof(ProjectDirector), new ImGuiAppWindowState(), projectDirector.Tick, projectDirector.ShowMenu, projectDirector.WindowResized);
+		ImGuiApp.Start(nameof(ProjectDirector), projectDirector.Options.WindowState, projectDirector.Tick, projectDirector.ShowMenu, projectDirector.WindowResized);
 	}
 
 	public ProjectDirector()
@@ -81,7 +81,11 @@ internal sealed class ProjectDirector
 		RefreshPage();
 	}
 
-	private void WindowResized() => QueueSaveOptions();
+	private void WindowResized()
+	{
+		Options.WindowState = ImGuiApp.WindowState;
+		QueueSaveOptions();
+	}
 
 	private void DividerResized(DividerContainer container)
 	{
