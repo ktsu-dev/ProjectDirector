@@ -20,4 +20,5 @@ public sealed class GitHubRepository : GitRepository
 		return remotePath.StartsWith("https://github.com/", StringComparison.Ordinal);
 	}
 }
+
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

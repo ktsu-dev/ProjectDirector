@@ -30,6 +30,7 @@ internal sealed class ProjectDirector
 	private PopupInputString PopupAddNewGitHubOwner { get; } = new();
 	private Collection<RelativePath> BrowserContentsBase { get; set; } = new();
 	private Collection<RelativePath> BrowserContentsCompare { get; set; } = new();
+	private PopupPropagateFile PopupPropagateFile { get; } = new();
 
 	private static void Main(string[] _)
 	{
@@ -172,11 +173,11 @@ internal sealed class ProjectDirector
 		Options.CompareFile = compareFile;
 		if (compareRepo.IsEmpty())
 		{
-			ClearBrowserPath();
+			SwitchRepoBrowserPath(baseRepo, new());
 		}
 		else
 		{
-			SwitchBrowserPath(baseRepo, compareRepo, new());
+			SwitchCompareBrowserPath(baseRepo, compareRepo, new());
 		}
 		QueueSaveOptions();
 	}
@@ -258,15 +259,16 @@ internal sealed class ProjectDirector
 
 			if (!Options.CompareFile.IsEmpty())
 			{
-				ShowComparedFile(dt, repo);
+				ShowCollapsiblePanel($"Compare File", () => ShowComparedFile(dt, repo));
 			}
 			else if (!Options.CompareRepo.IsEmpty())
 			{
-				ShowComparedRepo(repo);
+				ShowCollapsiblePanel($"Compare Repo", () => ShowComparedRepo(repo));
 			}
 			else
 			{
-				ShowSimilarRepos(repo);
+				ShowCollapsiblePanel($"Repo Browser", ShowRepoBrowser);
+				ShowCollapsiblePanel($"Similar Repos", () => ShowSimilarRepos(repo));
 			}
 		}
 	}
@@ -693,7 +695,7 @@ internal sealed class ProjectDirector
 			.Select(kvp => kvp.Key);
 
 		ImGui.BeginTable("SimilarRepos", 3, ImGuiTableFlags.Borders);
-		ImGui.TableSetupColumn("Similar Repos", ImGuiTableColumnFlags.WidthStretch, 40);
+		ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch, 40);
 		ImGui.TableSetupColumn("Similar", ImGuiTableColumnFlags.None, 3);
 		ImGui.TableSetupColumn("Exact", ImGuiTableColumnFlags.None, 3);
 		ImGui.TableHeadersRow();
@@ -764,7 +766,7 @@ internal sealed class ProjectDirector
 		ImGui.EndTable();
 
 		ImGui.NewLine();
-		ShowFileBrowser();
+		ShowCompareBrowser();
 	}
 
 	private void ShowComparedFile(float dt, GitRepository repo)
@@ -1015,13 +1017,13 @@ internal sealed class ProjectDirector
 	private static IEnumerable<string> FormatAddedLines(IEnumerable<string> lines) => FormatLines(lines);
 	private static IEnumerable<string> FormatUnchangedLines(IEnumerable<string> lines) => FormatLines(lines);
 
-	private void ShowFileBrowser()
+	private void ShowCompareBrowser()
 	{
 		var allFilesystemEntries = BrowserContentsBase.Union(BrowserContentsCompare);
 		var directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
 		var files = allFilesystemEntries.Except(directories).ToCollection();
 
-		ImGui.BeginTable("FileBrowser", 3, ImGuiTableFlags.Borders);
+		ImGui.BeginTable("CompareBrowser", 3, ImGuiTableFlags.Borders);
 		ImGui.TableSetupColumn("Path", ImGuiTableColumnFlags.WidthStretch, 40);
 		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
 		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
@@ -1037,11 +1039,11 @@ internal sealed class ProjectDirector
 				string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
 				if (string.IsNullOrEmpty(newPath))
 				{
-					SwitchBrowserPath(Options.BaseRepo, Options.CompareRepo, new());
+					SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, new());
 				}
 				else
 				{
-					SwitchBrowserPath(Options.BaseRepo, Options.CompareRepo, (RelativeDirectoryPath)newPath);
+					SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, (RelativeDirectoryPath)newPath);
 				}
 			}
 		}
@@ -1060,7 +1062,7 @@ internal sealed class ProjectDirector
 				var repoB = Options.Repos[Options.CompareRepo];
 				if (repoA is GitHubRepository githubRepoA && repoB is GitHubRepository githubRepoB)
 				{
-					SwitchBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), (RelativeDirectoryPath)Path.Combine(Options.BrowsePath, path));
+					SwitchCompareBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), (RelativeDirectoryPath)Path.Combine(Options.BrowsePath, path));
 
 				}
 				else
@@ -1163,7 +1165,113 @@ internal sealed class ProjectDirector
 		ImGui.EndTable();
 	}
 
-	private void SwitchBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
+	private void ShowRepoBrowser()
+	{
+		var allFilesystemEntries = BrowserContentsBase;
+		var directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
+		var files = allFilesystemEntries.Except(directories).ToCollection();
+
+		ImGui.BeginTable("RepoBrowser", 3, ImGuiTableFlags.Borders);
+		ImGui.TableSetupColumn("Path", ImGuiTableColumnFlags.WidthStretch, 40);
+		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 10);
+		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
+		ImGui.TableHeadersRow();
+
+		if (!Options.BrowsePath.IsEmpty())
+		{
+			ImGui.TableNextRow();
+			ImGui.TableNextColumn();
+			ImGui.Selectable($"..");
+			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			{
+				string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
+				if (string.IsNullOrEmpty(newPath))
+				{
+					SwitchRepoBrowserPath(Options.BaseRepo, new());
+				}
+				else
+				{
+					SwitchRepoBrowserPath(Options.BaseRepo, (RelativeDirectoryPath)newPath);
+				}
+			}
+		}
+
+		bool shouldOpenPopup = false;
+
+		foreach (var path in directories)
+		{
+			ImGui.TableNextRow();
+			ImGui.TableNextColumn();
+			ImGui.Selectable(path);
+			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			{
+				var repoA = Options.Repos[Options.BaseRepo];
+				if (repoA is GitHubRepository githubRepoA)
+				{
+					SwitchRepoBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), (RelativeDirectoryPath)path.WeakString);
+				}
+				else
+				{
+					throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+				}
+			}
+
+			ImGui.TableNextColumn();
+			//if (ImGui.Button($"Propagate Directory###Propagate{path.Replace(Path.DirectorySeparatorChar, '.').Replace(Path.AltDirectorySeparatorChar, '.')}"))
+			//{
+			//	shouldOpenPopup |= true;
+			//	Options.PropagatePath = path;
+			//}
+
+			ImGui.TableNextColumn();
+			//if (ImGui.Button($"X"))
+			//{
+			//	//Directory.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+			//}
+
+			//if (ImGui.IsItemHovered())
+			//{
+			//	ImGui.BeginTooltip();
+			//	ImGui.TextUnformatted("Delete Directory");
+			//	ImGui.EndTooltip();
+			//}
+		}
+
+		foreach (var path in files)
+		{
+			ImGui.TableNextRow();
+			ImGui.TableNextColumn();
+			ImGui.Selectable(path);
+			ImGui.TableNextColumn();
+			if (ImGui.Button($"Propagate###Propagate{path.Replace(Path.DirectorySeparatorChar, '.').Replace(Path.AltDirectorySeparatorChar, '.')}"))
+			{
+				shouldOpenPopup |= true;
+				Options.PropagatePath = path;
+			}
+
+			ImGui.TableNextColumn();
+			//if (ImGui.Button($"X"))
+			//{
+			//	//File.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+			//}
+
+			//if (ImGui.IsItemHovered())
+			//{
+			//	ImGui.BeginTooltip();
+			//	ImGui.TextUnformatted("Delete File");
+			//	ImGui.EndTooltip();
+			//}
+		}
+		ImGui.EndTable();
+
+		if (shouldOpenPopup)
+		{
+			PopupPropagateFile.Open(Options);
+		}
+		PopupPropagateFile.ShowIfOpen();
+	}
+
+	private void SwitchCompareBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
 	{
 		Options.BrowsePath = newPath;
 		var repoA = Options.Repos[baseRepo];
@@ -1185,6 +1293,27 @@ internal sealed class ProjectDirector
 		try
 		{
 			BrowserContentsCompare = Directory.EnumerateFileSystemEntries(Path.Combine(repoB.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoB.LocalPath)).ToCollection();
+		}
+		catch (DirectoryNotFoundException)
+		{
+		}
+
+		QueueSaveOptions();
+	}
+
+	private void SwitchRepoBrowserPath(FullyQualifiedGitHubRepoName baseRepo, RelativeDirectoryPath newPath)
+	{
+		Options.BrowsePath = newPath;
+		var repoA = Options.Repos[baseRepo];
+
+		static RelativePath formatPath(string path, string prefix) => (RelativePath)(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
+
+		BrowserContentsBase.Clear();
+		BrowserContentsCompare.Clear();
+
+		try
+		{
+			BrowserContentsBase = Directory.EnumerateFileSystemEntries(Path.Combine(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
 		}
 		catch (DirectoryNotFoundException)
 		{

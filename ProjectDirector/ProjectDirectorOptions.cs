@@ -30,6 +30,8 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 	[JsonIgnore]
 	public RelativeFilePath CompareFile { get; set; } = new();
 	[JsonIgnore]
+	public RelativePath PropagatePath { get; set; } = new();
+	[JsonIgnore]
 	public RelativeDirectoryPath BrowsePath { get; set; } = new();
 	public Dictionary<FullyQualifiedGitHubRepoName, GitRepository> Repos { get; init; } = new();
 }
