@@ -582,7 +582,10 @@ internal sealed class ProjectDirector
 		var knownOwners = Options.GitHubOwners;
 		foreach (var (owner, pat) in knownOwners)
 		{
-			GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, Options.GitHubPAT);
+			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubPAT)))
+			{
+				GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, Options.GitHubPAT);
+			}
 
 			SyncGitHubOwnerInfo(owner);
 		}
