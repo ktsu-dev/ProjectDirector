@@ -65,25 +65,24 @@ internal class PopupPropagateFile : PopupModal
 		Prompt.ShowIfOpen();
 	}
 
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0022:Use expression body for method", Justification = "<Pending>")]
 	private void Propagate()
 	{
-		//var repo = Options.Repos[Options.BaseRepo];
-		//string from = Path.Combine(repo.LocalPath, Options.PropagatePath);
-		//foreach (var (name, shouldPropagate) in Propagation)
-		//{
-		//	if (shouldPropagate)
-		//	{
-		//		var otherRepo = Options.Repos[name];
-		//		string to = Path.Combine(otherRepo.LocalPath, Options.PropagatePath);
-		//		string? directory = Path.GetDirectoryName(to);
-		//		if (!string.IsNullOrEmpty(directory))
-		//		{
-		//			Directory.CreateDirectory(directory);
-		//			File.Copy(from, to, overwrite: true);
-		//		}
-		//	}
-		//}
+		var repo = Options.Repos[Options.BaseRepo];
+		string from = Path.Combine(repo.LocalPath, Options.PropagatePath);
+		foreach (var (name, shouldPropagate) in Propagation)
+		{
+			if (shouldPropagate)
+			{
+				var otherRepo = Options.Repos[name];
+				string to = Path.Combine(otherRepo.LocalPath, Options.PropagatePath);
+				string? directory = Path.GetDirectoryName(to);
+				if (!string.IsNullOrEmpty(directory))
+				{
+					Directory.CreateDirectory(directory);
+					File.Copy(from, to, overwrite: true);
+				}
+			}
+		}
 
 		ShouldClose = true;
 	}
