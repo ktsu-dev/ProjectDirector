@@ -14,6 +14,7 @@
     <NamespaceSuffix>$(MSBuildProjectName.Replace(" ", ""))</NamespaceSuffix>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <WarningLevel>9999</WarningLevel>
     <NoWarn>CA1724;CA1034;CA1000;</NoWarn>
     <EnablePackageValidation>True</EnablePackageValidation>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>

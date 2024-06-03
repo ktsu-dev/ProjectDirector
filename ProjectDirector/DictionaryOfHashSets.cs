@@ -10,7 +10,7 @@ public sealed class DictionaryOfHashSets<TKey, TValue> : Dictionary<TKey, HashSe
 	{
 		if (!TryGetValue(key, out var collection))
 		{
-			collection = new HashSet<TValue>();
+			collection = [];
 			Add(key, collection);
 		}
 		collection.Add(value);

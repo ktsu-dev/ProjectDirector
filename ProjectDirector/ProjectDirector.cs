@@ -28,14 +28,14 @@ internal sealed class ProjectDirector
 	private StringBuilder LogBuilder { get; } = new();
 	private PopupInputString PopupSetDevDirectory { get; } = new();
 	private PopupInputString PopupAddNewGitHubOwner { get; } = new();
-	private Collection<RelativePath> BrowserContentsBase { get; set; } = new();
-	private Collection<RelativePath> BrowserContentsCompare { get; set; } = new();
+	private Collection<RelativePath> BrowserContentsBase { get; set; } = [];
+	private Collection<RelativePath> BrowserContentsCompare { get; set; } = [];
 	private PopupPropagateFile PopupPropagateFile { get; } = new();
 
 	private static void Main(string[] _)
 	{
 		ProjectDirector projectDirector = new();
-		ImGuiApp.Start(nameof(ProjectDirector), projectDirector.Options.WindowState, projectDirector.Tick, projectDirector.ShowMenu, projectDirector.WindowResized);
+		ImGuiApp.Start(nameof(ProjectDirector), projectDirector.Options.WindowState, null, projectDirector.Tick, projectDirector.ShowMenu, projectDirector.WindowResized);
 	}
 
 	public ProjectDirector()
@@ -419,8 +419,8 @@ internal sealed class ProjectDirector
 			{
 				if (gitHubRepo.OwnerName == owner)
 				{
-					bool isChecked = Options.ClonedRepos.ContainsKey(repo.LocalPath);
-					ImGui.Checkbox($"##cb{repoName}", ref isChecked);
+					bool isCloned = Options.ClonedRepos.ContainsKey(repo.LocalPath);
+					ColorIndicator.Show(Color.Green, isCloned);
 					ImGui.SameLine();
 					bool isSelected = Options.BaseRepo == repoName;
 					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
@@ -630,8 +630,28 @@ internal sealed class ProjectDirector
 					using var otherGitRepo = new LibGit2Sharp.Repository(repoB.LocalPath);
 					var otherFileList = otherGitRepo.Index.Select(x => x.Path);
 					var matches = fileList.Intersect(otherFileList).ToCollection();
-					var fileContents = matches.ToDictionary(x => x, x => File.ReadAllText(Path.Combine(repoA.LocalPath, x)));
-					var otherFileContents = matches.ToDictionary(x => x, x => File.ReadAllText(Path.Combine(repoB.LocalPath, x)));
+					var fileContents = matches.ToDictionary(x => x, x =>
+					{
+						try
+						{
+							return File.ReadAllText(Path.Combine(repoA.LocalPath, x));
+						}
+						catch (FileNotFoundException)
+						{
+							return string.Empty;
+						}
+					});
+					var otherFileContents = matches.ToDictionary(x => x, x =>
+					{
+						try
+						{
+							return File.ReadAllText(Path.Combine(repoB.LocalPath, x));
+						}
+						catch (FileNotFoundException)
+						{
+							return string.Empty;
+						}
+					});
 					foreach (string match in matches)
 					{
 						diffs[(RelativeFilePath)match] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
@@ -673,7 +693,7 @@ internal sealed class ProjectDirector
 		{
 		}
 
-		return new(Array.Empty<string>(), Array.Empty<string>(), new List<DiffBlock>());
+		return new([], [], []);
 	}
 
 	private static void RefreshFileDiff(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
@@ -816,7 +836,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.ArrowButton($"DiffTakeLeft{i}", ImGuiDir.Right))
 			{
-				List<string> newLines = new();
+				List<string> newLines = [];
 				{
 					int endIndex = block.InsertStartB;
 					newLines.AddRange(diff.PiecesNew[..endIndex]);
@@ -899,7 +919,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.ArrowButton($"DiffTakeRight{i}", ImGuiDir.Left))
 			{
-				List<string> newLines = new();
+				List<string> newLines = [];
 				{
 					int endIndex = block.DeleteStartA;
 					newLines.AddRange(diff.PiecesOld[..endIndex]);

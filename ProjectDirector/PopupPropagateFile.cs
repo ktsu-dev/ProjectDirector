@@ -9,7 +9,7 @@ using ktsu.io.StrongPaths;
 internal class PopupPropagateFile : PopupModal
 {
 	private ProjectDirectorOptions Options { get; set; } = new();
-	private Dictionary<FullyQualifiedGitHubRepoName, bool> Propagation { get; } = new();
+	private Dictionary<FullyQualifiedGitHubRepoName, bool> Propagation { get; } = [];
 	private PopupPrompt Prompt { get; } = new();
 	private bool ShouldClose { get; set; }
 

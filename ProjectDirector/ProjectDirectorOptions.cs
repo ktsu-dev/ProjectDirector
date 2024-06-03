@@ -20,11 +20,11 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 
 	public GitHubLogin GitHubLogin { get; set; } = new();
 	public GitHubPAT GitHubPAT { get; set; } = new();
-	public Dictionary<string, bool> PanelStates { get; init; } = new();
-	public Dictionary<string, List<float>> DividerStates { get; init; } = new();
-	public Dictionary<GitHubOwnerName, GitHubPAT> GitHubOwners { get; init; } = new();
-	public Dictionary<GitHubOwnerName, Octokit.User> GitHubOwnerInfo { get; init; } = new();
-	public Dictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> ClonedRepos { get; init; } = new();
+	public Dictionary<string, bool> PanelStates { get; init; } = [];
+	public Dictionary<string, List<float>> DividerStates { get; init; } = [];
+	public Dictionary<GitHubOwnerName, GitHubPAT> GitHubOwners { get; init; } = [];
+	public Dictionary<GitHubOwnerName, Octokit.User> GitHubOwnerInfo { get; init; } = [];
+	public Dictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> ClonedRepos { get; init; } = [];
 	public FullyQualifiedGitHubRepoName BaseRepo { get; set; } = new();
 	public FullyQualifiedGitHubRepoName CompareRepo { get; set; } = new();
 	[JsonIgnore]
@@ -33,6 +33,6 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 	public RelativePath PropagatePath { get; set; } = new();
 	[JsonIgnore]
 	public RelativeDirectoryPath BrowsePath { get; set; } = new();
-	public Dictionary<FullyQualifiedGitHubRepoName, GitRepository> Repos { get; init; } = new();
+	public Dictionary<FullyQualifiedGitHubRepoName, GitRepository> Repos { get; init; } = [];
 }
 #pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
