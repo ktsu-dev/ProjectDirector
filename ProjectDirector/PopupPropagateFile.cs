@@ -43,7 +43,7 @@ internal class PopupPropagateFile : PopupModal
 		foreach (var (name, similar) in sortedRepos)
 		{
 			bool shouldPropagate = Propagation.GetOrCreate(name, similar);
-			ImGui.Checkbox($"{name}{(similar ? "*" : string.Empty)}", ref shouldPropagate);
+			_ = ImGui.Checkbox($"{name}{(similar ? "*" : string.Empty)}", ref shouldPropagate);
 			Propagation[name] = shouldPropagate;
 		}
 		ImGui.Separator();
@@ -62,7 +62,7 @@ internal class PopupPropagateFile : PopupModal
 			ImGui.CloseCurrentPopup();
 		}
 
-		Prompt.ShowIfOpen();
+		_ = Prompt.ShowIfOpen();
 	}
 
 	private void Propagate()
@@ -78,7 +78,7 @@ internal class PopupPropagateFile : PopupModal
 				string? directory = Path.GetDirectoryName(to);
 				if (!string.IsNullOrEmpty(directory))
 				{
-					Directory.CreateDirectory(directory);
+					_ = Directory.CreateDirectory(directory);
 					File.Copy(from, to, overwrite: true);
 				}
 			}

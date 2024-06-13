@@ -16,7 +16,7 @@ using ktsu.io.StrongPaths;
 
 internal sealed class ProjectDirector
 {
-	internal ProjectDirectorOptions Options { get; } = new();
+	internal ProjectDirectorOptions Options { get; }
 	private static float FieldWidth => ImGui.GetIO().DisplaySize.X * 0.15f;
 	private DateTime LastSaveOptionsTime { get; set; } = DateTime.MinValue;
 	private DateTime SaveOptionsQueuedTime { get; set; } = DateTime.MinValue;
@@ -69,14 +69,14 @@ internal sealed class ProjectDirector
 		LibGit2Sharp.GlobalSettings.LogConfiguration = new(LibGit2Sharp.LogLevel.Debug, new((level, message) =>
 		{
 			string logMessage = $"[{level}] {message}";
-			LogBuilder.AppendLine(logMessage);
+			_ = LogBuilder.AppendLine(logMessage);
 		}));
 
 		GitHubClient = new(new Octokit.ProductHeaderValue("ktsu.io.ProjectDirector"));
 
-		if (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubPAT))
+		if (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken))
 		{
-			GitHubClient.Credentials = new(Options.GitHubLogin, Options.GitHubPAT);
+			GitHubClient.Credentials = new(Options.GitHubLogin, Options.GitHubToken);
 		}
 
 		RefreshPage();
@@ -113,18 +113,19 @@ internal sealed class ProjectDirector
 		}
 	}
 
-	// Dont call this directly, call QueueSaveOptions instead so that we can debounce the saves and avoid saving multiple times per frame or multiple frames in a row
+	// Don't call this directly, call QueueSaveOptions instead so that we can debounce the saves and avoid saving multiple times per frame or multiple frames in a row
 	private void SaveOptionsInternal() => Options.Save();
 
-	private void QueueSaveOptions() => SaveOptionsQueuedTime = DateTime.Now;
+	private void QueueSaveOptions() => SaveOptionsQueuedTime = DateTime.UtcNow;
 
 	private void SaveOptionsIfRequired()
 	{
 		//debounce the save requests and avoid saving multiple times per frame or multiple frames in a row
-		if ((SaveOptionsQueuedTime > LastSaveOptionsTime) && ((DateTime.Now - SaveOptionsQueuedTime) > SaveOptionsDebounceTime))
+		if ((SaveOptionsQueuedTime > LastSaveOptionsTime)
+			&& ((DateTime.UtcNow - SaveOptionsQueuedTime) > SaveOptionsDebounceTime))
 		{
 			SaveOptionsInternal();
-			LastSaveOptionsTime = DateTime.Now;
+			LastSaveOptionsTime = DateTime.UtcNow;
 		}
 	}
 
@@ -132,24 +133,23 @@ internal sealed class ProjectDirector
 	{
 		foreach (var (repoPath, repoName) in Options.ClonedRepos)
 		{
-			if (Options.Repos.TryGetValue(repoName, out var repo))
+			if (Options.Repos.TryGetValue(repoName, out var repo)
+				&& repo.MinFetchIntervalSeconds > 0
+				&& (DateTime.UtcNow - repo.LastFetchTime) > TimeSpan.FromSeconds(repo.MinFetchIntervalSeconds))
 			{
-				if (repo.MinFetchIntervalSeconds > 0 && (DateTime.Now - repo.LastFetchTime) > TimeSpan.FromSeconds(repo.MinFetchIntervalSeconds))
+				repo.LastFetchTime = DateTime.UtcNow;
+				QueueSaveOptions();
+
+				var task = new Task(() =>
 				{
-					repo.LastFetchTime = DateTime.Now;
-					QueueSaveOptions();
+					var localRepo = new LibGit2Sharp.Repository(repoPath);
+					var fetchOptions = new LibGit2Sharp.FetchOptions();
+					var origin = localRepo.Network.Remotes["origin"];
+					var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
+					//LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repoName}");
+				});
 
-					var task = new Task(() =>
-					{
-						var localRepo = new LibGit2Sharp.Repository(repoPath);
-						var fetchOptions = new LibGit2Sharp.FetchOptions();
-						var origin = localRepo.Network.Remotes["origin"];
-						var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
-						//LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repoName}");
-					});
-
-					task.Start();
-				}
+				task.Start();
 			}
 		}
 	}
@@ -158,7 +158,7 @@ internal sealed class ProjectDirector
 	{
 		if (Options.Repos.TryGetValue(baseRepo, out var repo))
 		{
-			UpdateClonedStatus(repo);
+			_ = UpdateClonedStatus(repo);
 			UpdateSimilarRepos(repo);
 		}
 
@@ -186,8 +186,8 @@ internal sealed class ProjectDirector
 	{
 		DividerContainerCols.Tick(dt);
 
-		PopupSetDevDirectory.ShowIfOpen();
-		PopupAddNewGitHubOwner.ShowIfOpen();
+		_ = PopupSetDevDirectory.ShowIfOpen();
+		_ = PopupAddNewGitHubOwner.ShowIfOpen();
 
 		FetchReposIfRequired();
 		SaveOptionsIfRequired();
@@ -209,10 +209,10 @@ internal sealed class ProjectDirector
 					{
 						var task = new Task(() =>
 						{
-							LibGit2Sharp.Repository.Clone(repo.RemotePath, repo.LocalPath);
+							_ = LibGit2Sharp.Repository.Clone(repo.RemotePath, repo.LocalPath);
 						});
 
-						task.ContinueWith((t) =>
+						task = task.ContinueWith((t) =>
 						{
 							RefreshPage();
 						},
@@ -233,8 +233,8 @@ internal sealed class ProjectDirector
 
 					ImGui.SameLine();
 
-					int timeUntilFetch = fetchInterval - (int)(DateTime.Now - repo.LastFetchTime).TotalSeconds;
-					Knob.Draw("Fetch In", ref timeUntilFetch, 0, 300, 150);
+					int timeUntilFetch = fetchInterval - (int)(DateTime.UtcNow - repo.LastFetchTime).TotalSeconds;
+					_ = Knob.Draw("Fetch In", ref timeUntilFetch, 0, 300, 150);
 
 					if (ImGui.Button("Pull", new Vector2(FieldWidth, 0)))
 					{
@@ -251,9 +251,9 @@ internal sealed class ProjectDirector
 						//task.Start();
 					}
 					ImGui.SameLine();
-					ImGui.Button("Commit", new Vector2(FieldWidth, 0));
+					_ = ImGui.Button("Commit", new Vector2(FieldWidth, 0)); // TODO
 					ImGui.SameLine();
-					ImGui.Button("Push", new Vector2(FieldWidth, 0));
+					_ = ImGui.Button("Push", new Vector2(FieldWidth, 0)); // TODO
 				}
 			});
 
@@ -277,7 +277,7 @@ internal sealed class ProjectDirector
 	{
 		if (Options.Repos.TryGetValue(Options.BaseRepo, out var repo))
 		{
-			UpdateClonedStatus(repo);
+			_ = UpdateClonedStatus(repo);
 			UpdateSimilarRepos(repo);
 		}
 		SwitchPage(Options.BaseRepo, Options.CompareRepo, Options.CompareFile);
@@ -285,9 +285,12 @@ internal sealed class ProjectDirector
 
 	private void ShowBottomPanel(float dt)
 	{
-		ImGui.BeginChild("Log", new Vector2(0, 0), true, ImGuiWindowFlags.HorizontalScrollbar);
-		ImGui.TextUnformatted(LogBuilder.ToString());
-		ImGui.SetScrollHereY(1);
+		if (ImGui.BeginChild("Log", new Vector2(0, 0), true, ImGuiWindowFlags.HorizontalScrollbar))
+		{
+			ImGui.TextUnformatted(LogBuilder.ToString());
+			ImGui.SetScrollHereY(1);
+		}
+
 		ImGui.EndChild();
 	}
 
@@ -359,7 +362,7 @@ internal sealed class ProjectDirector
 						Arguments = Options.DevDirectory,
 					}
 				};
-				p.Start();
+				_ = p.Start();
 			}
 
 			ImGui.Separator();
@@ -371,7 +374,7 @@ internal sealed class ProjectDirector
 					if (!string.IsNullOrEmpty(result))
 					{
 						var newName = (GitHubOwnerName)result;
-						Options.GitHubOwners.TryAdd(newName, (GitHubPAT)string.Empty);
+						_ = Options.GitHubOwners.TryAdd(newName, (GitHubToken)string.Empty);
 						SyncGitHubOwnerInfo(newName);
 					}
 				});
@@ -431,7 +434,7 @@ internal sealed class ProjectDirector
 			}
 			else
 			{
-				ImGui.Selectable(((string)repo.LocalPath).RemovePrefix(Options.DevDirectory + "\\"));
+				_ = ImGui.Selectable(((string)repo.LocalPath).RemovePrefix(Options.DevDirectory + "\\"));
 			}
 		}
 	}
@@ -483,8 +486,9 @@ internal sealed class ProjectDirector
 
 			QueueSaveOptions();
 		}
-		catch (Exception)
+		catch (Octokit.ApiException)
 		{
+			// skip this owner
 		}
 	}
 
@@ -530,7 +534,7 @@ internal sealed class ProjectDirector
 		}
 		else
 		{
-			Options.ClonedRepos.Remove(repoPath);
+			_ = Options.ClonedRepos.Remove(repoPath);
 		}
 
 		return wasCloned != isCloned;
@@ -564,13 +568,13 @@ internal sealed class ProjectDirector
 						Options.Repos[repoFullName] = gitHubRepo;
 						gitHubRepo.OwnerName = ownerName;
 						gitHubRepo.RepoName = repoName;
-						Options.GitHubOwners.TryAdd(gitHubRepo.OwnerName, (GitHubPAT)string.Empty);
+						_ = Options.GitHubOwners.TryAdd(gitHubRepo.OwnerName, (GitHubToken)string.Empty);
 					}
 				}
 			}
 			catch (NotSupportedException)
 			{
-				continue;
+				// skip non-git repos
 			}
 		}
 
@@ -582,9 +586,9 @@ internal sealed class ProjectDirector
 		var knownOwners = Options.GitHubOwners;
 		foreach (var (owner, pat) in knownOwners)
 		{
-			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubPAT)))
+			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken)))
 			{
-				GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, Options.GitHubPAT);
+				GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, Options.GitHubToken);
 			}
 
 			SyncGitHubOwnerInfo(owner);
@@ -659,12 +663,15 @@ internal sealed class ProjectDirector
 				}
 				catch (LibGit2Sharp.RepositoryNotFoundException)
 				{
+					// skip this repo
 				}
 			}
 		}
 		catch (LibGit2Sharp.RepositoryNotFoundException)
 		{
+			// skip this repo
 		}
+
 		return diffs;
 	}
 
@@ -686,11 +693,13 @@ internal sealed class ProjectDirector
 				}
 				catch (LibGit2Sharp.RepositoryNotFoundException)
 				{
+					// skip this repo
 				}
 			}
 		}
 		catch (LibGit2Sharp.RepositoryNotFoundException)
 		{
+			// skip this repo
 		}
 
 		return new([], [], []);
@@ -717,30 +726,38 @@ internal sealed class ProjectDirector
 			.OrderByDescending(kvp => kvp.Value)
 			.Select(kvp => kvp.Key);
 
-		ImGui.BeginTable("SimilarRepos", 3, ImGuiTableFlags.Borders);
-		ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch, 40);
-		ImGui.TableSetupColumn("Similar", ImGuiTableColumnFlags.None, 3);
-		ImGui.TableSetupColumn("Exact", ImGuiTableColumnFlags.None, 3);
-		ImGui.TableHeadersRow();
-
-		foreach (var otherRepoName in sortedRepos)
+		if (ImGui.BeginTable("SimilarRepos", 3, ImGuiTableFlags.Borders))
 		{
-			int numExactDuplicates = repo.SimilarRepoDiffs[otherRepoName]
-				.Count(kvp => kvp.Value.DiffBlocks.Count == 0);
+			ImGui.TableSetupColumn("Name", ImGuiTableColumnFlags.WidthStretch, 40);
+			ImGui.TableSetupColumn("Similar", ImGuiTableColumnFlags.None, 3);
+			ImGui.TableSetupColumn("Exact", ImGuiTableColumnFlags.None, 3);
+			ImGui.TableHeadersRow();
 
-			int numMatches = repo.SimilarRepoDiffs[otherRepoName].Count;
-
-			ImGui.TableNextRow();
-			ImGui.TableNextColumn();
-			ImGui.Selectable(otherRepoName, selected: false, ImGuiSelectableFlags.SpanAllColumns);
-			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			foreach (var otherRepoName in sortedRepos)
 			{
-				SwitchPage(Options.BaseRepo, otherRepoName);
+				int numExactDuplicates = repo.SimilarRepoDiffs[otherRepoName]
+					.Count(kvp => kvp.Value.DiffBlocks.Count == 0);
+
+				int numMatches = repo.SimilarRepoDiffs[otherRepoName].Count;
+
+				ImGui.TableNextRow();
+				if (ImGui.TableNextColumn())
+				{
+					_ = ImGui.Selectable(otherRepoName, selected: false, ImGuiSelectableFlags.SpanAllColumns);
+					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+					{
+						SwitchPage(Options.BaseRepo, otherRepoName);
+					}
+				}
+				if (ImGui.TableNextColumn())
+				{
+					ImGui.TextUnformatted($"{numMatches}");
+				}
+				if (ImGui.TableNextColumn())
+				{
+					ImGui.TextUnformatted($"{numExactDuplicates}");
+				}
 			}
-			ImGui.TableNextColumn();
-			ImGui.TextUnformatted($"{numMatches}");
-			ImGui.TableNextColumn();
-			ImGui.TextUnformatted($"{numExactDuplicates}");
 		}
 		ImGui.EndTable();
 	}
@@ -756,40 +773,50 @@ internal sealed class ProjectDirector
 		ImGui.SameLine();
 		ImGui.TextUnformatted($"Comparing {Options.BaseRepo} vs {Options.CompareRepo}");
 
-		var otherRepo = Options.Repos[Options.CompareRepo];
 		var diffs = repo.SimilarRepoDiffs[Options.CompareRepo];
 		var sortedDiffs = diffs
-			.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.DiffBlocks.Sum(y => y.InsertCountB + y.DeleteCountA))
-			.OrderBy(kvp => kvp.Value)
+			.ToDictionary(kvp => kvp.Key, CountChangedLinesInDiffBlock)
 			.Where(kvp => kvp.Value > 0)
+			.OrderBy(kvp => kvp.Value)
 			.Select(kvp => kvp.Key);
 
-		ImGui.BeginTable("SimilarFiles", 3, ImGuiTableFlags.Borders);
-		ImGui.TableSetupColumn("Similar Files", ImGuiTableColumnFlags.WidthStretch, 40);
-		ImGui.TableSetupColumn("Deletions", ImGuiTableColumnFlags.None, 4);
-		ImGui.TableSetupColumn("Additions", ImGuiTableColumnFlags.None, 4);
-		ImGui.TableHeadersRow();
-
-		foreach (var filePath in sortedDiffs)
+		if (ImGui.BeginTable("SimilarFiles", 3, ImGuiTableFlags.Borders))
 		{
-			var diff = diffs[filePath];
+			ImGui.TableSetupColumn("Similar Files", ImGuiTableColumnFlags.WidthStretch, 40);
+			ImGui.TableSetupColumn("Deletions", ImGuiTableColumnFlags.None, 4);
+			ImGui.TableSetupColumn("Additions", ImGuiTableColumnFlags.None, 4);
+			ImGui.TableHeadersRow();
 
-			ImGui.TableNextRow();
-			ImGui.TableNextColumn();
-			ImGui.Selectable(filePath, selected: false, ImGuiSelectableFlags.SpanAllColumns);
-			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			foreach (var filePath in sortedDiffs)
 			{
-				SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
+				var diff = diffs[filePath];
+
+				ImGui.TableNextRow();
+				if (ImGui.TableNextColumn())
+				{
+					_ = ImGui.Selectable(filePath, selected: false, ImGuiSelectableFlags.SpanAllColumns);
+					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+					{
+						SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
+					}
+				}
+				if (ImGui.TableNextColumn())
+				{
+					ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.DeleteCountA)}");
+				}
+				if (ImGui.TableNextColumn())
+				{
+					ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.InsertCountB)}");
+				}
 			}
-			ImGui.TableNextColumn();
-			ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.DeleteCountA)}");
-			ImGui.TableNextColumn();
-			ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.InsertCountB)}");
 		}
 		ImGui.EndTable();
 
 		ImGui.NewLine();
 		ShowCompareBrowser();
+
+		static int CountChangedLinesInDiffBlock(KeyValuePair<RelativeFilePath, DiffResult> kvp) =>
+			kvp.Value.DiffBlocks.Sum(y => y.InsertCountB + y.DeleteCountA);
 	}
 
 	private void ShowComparedFile(float dt, GitRepository repo)
@@ -808,9 +835,11 @@ internal sealed class ProjectDirector
 		ShowWholeDiffSummary(diff);
 
 		ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));
-		ImGui.BeginChild("Diff", new(0, 0), border: false, ImGuiWindowFlags.NoDecoration);
-		ImGui.PopStyleVar();
-		DividerDiff.Tick(dt);
+		if (ImGui.BeginChild("Diff", new(0, 0), border: false, ImGuiWindowFlags.NoDecoration))
+		{
+			ImGui.PopStyleVar();
+			DividerDiff.Tick(dt);
+		}
 		ImGui.EndChild();
 	}
 
@@ -837,21 +866,9 @@ internal sealed class ProjectDirector
 			if (ImGui.ArrowButton($"DiffTakeLeft{i}", ImGuiDir.Right))
 			{
 				List<string> newLines = [];
-				{
-					int endIndex = block.InsertStartB;
-					newLines.AddRange(diff.PiecesNew[..endIndex]);
-				}
-
-				{
-					int startIndex = block.DeleteStartA;
-					int endIndex = startIndex + block.DeleteCountA;
-					newLines.AddRange(diff.PiecesOld[startIndex..endIndex]);
-				}
-
-				{
-					int startIndex = block.InsertStartB + block.InsertCountB;
-					newLines.AddRange(diff.PiecesNew[startIndex..]);
-				}
+				AddPrologueForDeletedLines(diff, block, newLines);
+				AddDeletedLines(diff, block, newLines);
+				AddEpilogueForDeletedLines(diff, block, newLines);
 				string newText = string.Join(Environment.NewLine, newLines);
 				File.WriteAllText(Path.Combine(repoB.LocalPath, Options.CompareFile), newText);
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
@@ -860,32 +877,9 @@ internal sealed class ProjectDirector
 			ShowDiffBlockSummary(block);
 			if (ImGui.BeginTable($"DiffBlockLeft{i}", 3, ImGuiTableFlags.SizingFixedFit))
 			{
-				// prologue
-				{
-					int startIndex = Math.Max(block.DeleteStartA - 3, 0);
-					int endIndex = block.DeleteStartA;
-					var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
-					ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
-				}
-
-				// body
-				{
-					int startIndex = block.DeleteStartA;
-					int endIndex = startIndex + block.DeleteCountA;
-					var formattedLines = FormatDeletedLines(diff.PiecesOld[startIndex..endIndex]);
-					ShowDiffLines(formattedLines, startIndex, "-", DiffDeletionLineColor);
-
-					int extraLines = Math.Max(0, block.InsertCountB - block.DeleteCountA);
-					ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffAdditionFillerLineColor);
-				}
-
-				// epilogue
-				{
-					int startIndex = block.DeleteStartA + block.DeleteCountA;
-					int endIndex = Math.Min(startIndex + 3, diff.PiecesOld.Length);
-					var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
-					ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
-				}
+				ShowPrologueForDeletedLines(diff, block);
+				ShowDeletedLines(diff, block);
+				ShowEpilogueForDeletedLines(diff, block);
 			}
 			ImGui.EndTable();
 			ImGui.NewLine();
@@ -905,6 +899,52 @@ internal sealed class ProjectDirector
 		}
 
 		ScrollLeft = new(ImGui.GetScrollX(), ImGui.GetScrollY());
+
+		static void AddPrologueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		{
+			int endIndex = block.InsertStartB;
+			newLines.AddRange(diff.PiecesNew[..endIndex]);
+		}
+
+		static void AddEpilogueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		{
+			int startIndex = block.InsertStartB + block.InsertCountB;
+			newLines.AddRange(diff.PiecesNew[startIndex..]);
+		}
+
+		static void AddDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		{
+			int startIndex = block.DeleteStartA;
+			int endIndex = startIndex + block.DeleteCountA;
+			newLines.AddRange(diff.PiecesOld[startIndex..endIndex]);
+		}
+
+		static void ShowPrologueForDeletedLines(DiffResult diff, DiffBlock block)
+		{
+			int startIndex = Math.Max(block.DeleteStartA - 3, 0);
+			int endIndex = block.DeleteStartA;
+			var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
+			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
+		}
+
+		static void ShowDeletedLines(DiffResult diff, DiffBlock block)
+		{
+			int startIndex = block.DeleteStartA;
+			int endIndex = startIndex + block.DeleteCountA;
+			var formattedLines = FormatDeletedLines(diff.PiecesOld[startIndex..endIndex]);
+			ShowDiffLines(formattedLines, startIndex, "-", DiffDeletionLineColor);
+
+			int extraLines = Math.Max(0, block.InsertCountB - block.DeleteCountA);
+			ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffAdditionFillerLineColor);
+		}
+
+		static void ShowEpilogueForDeletedLines(DiffResult diff, DiffBlock block)
+		{
+			int startIndex = block.DeleteStartA + block.DeleteCountA;
+			int endIndex = Math.Min(startIndex + 3, diff.PiecesOld.Length);
+			var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
+			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
+		}
 	}
 
 	private void ShowDiffRight(GitRepository repoA, GitRepository repoB, DiffResult? diff)
@@ -920,21 +960,9 @@ internal sealed class ProjectDirector
 			if (ImGui.ArrowButton($"DiffTakeRight{i}", ImGuiDir.Left))
 			{
 				List<string> newLines = [];
-				{
-					int endIndex = block.DeleteStartA;
-					newLines.AddRange(diff.PiecesOld[..endIndex]);
-				}
-
-				{
-					int startIndex = block.InsertStartB;
-					int endIndex = startIndex + block.InsertCountB;
-					newLines.AddRange(diff.PiecesNew[startIndex..endIndex]);
-				}
-
-				{
-					int startIndex = block.DeleteStartA + block.DeleteCountA;
-					newLines.AddRange(diff.PiecesOld[startIndex..]);
-				}
+				AddPrologueForNewLines(diff, block, newLines);
+				AddNewLines(diff, block, newLines);
+				AddEpilogueForNewLines(diff, block, newLines);
 				string newText = string.Join(Environment.NewLine, newLines);
 				File.WriteAllText(Path.Combine(repoA.LocalPath, Options.CompareFile), newText);
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
@@ -943,32 +971,9 @@ internal sealed class ProjectDirector
 			ShowDiffBlockSummary(block);
 			if (ImGui.BeginTable($"DiffBlockRight{i}", 3, ImGuiTableFlags.SizingFixedFit))
 			{
-				// prologue
-				{
-					int startIndex = Math.Max(block.InsertStartB - 3, 0);
-					int endIndex = block.InsertStartB;
-					var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
-					ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
-				}
-
-				// body
-				{
-					int startIndex = block.InsertStartB;
-					int endIndex = startIndex + block.InsertCountB;
-					var formattedLines = FormatAddedLines(diff.PiecesNew[startIndex..endIndex]);
-					ShowDiffLines(formattedLines, startIndex, "+", DiffAdditionLineColor);
-
-					int extraLines = Math.Max(0, block.DeleteCountA - block.InsertCountB);
-					ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffDeletionFillerLineColor);
-				}
-
-				// epilogue
-				{
-					int startIndex = block.InsertStartB + block.InsertCountB;
-					int endIndex = Math.Min(startIndex + 3, diff.PiecesNew.Length);
-					var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
-					ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
-				}
+				ShowPrologueForNewLines(diff, block);
+				ShowNewLines(diff, block);
+				ShowEpilogueForNewLines(diff, block);
 			}
 			ImGui.EndTable();
 			ImGui.NewLine();
@@ -987,22 +992,74 @@ internal sealed class ProjectDirector
 		}
 
 		ScrollRight = new(ImGui.GetScrollX(), ImGui.GetScrollY());
+
+		static void AddPrologueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		{
+			int endIndex = block.DeleteStartA;
+			newLines.AddRange(diff.PiecesOld[..endIndex]);
+		}
+
+		static void AddNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		{
+			int startIndex = block.InsertStartB;
+			int endIndex = startIndex + block.InsertCountB;
+			newLines.AddRange(diff.PiecesNew[startIndex..endIndex]);
+		}
+
+		static void AddEpilogueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		{
+			int startIndex = block.DeleteStartA + block.DeleteCountA;
+			newLines.AddRange(diff.PiecesOld[startIndex..]);
+		}
+
+		static void ShowPrologueForNewLines(DiffResult diff, DiffBlock block)
+		{
+			int startIndex = Math.Max(block.InsertStartB - 3, 0);
+			int endIndex = block.InsertStartB;
+			var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
+			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
+		}
+
+		static void ShowNewLines(DiffResult diff, DiffBlock block)
+		{
+			int startIndex = block.InsertStartB;
+			int endIndex = startIndex + block.InsertCountB;
+			var formattedLines = FormatAddedLines(diff.PiecesNew[startIndex..endIndex]);
+			ShowDiffLines(formattedLines, startIndex, "+", DiffAdditionLineColor);
+
+			int extraLines = Math.Max(0, block.DeleteCountA - block.InsertCountB);
+			ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffDeletionFillerLineColor);
+		}
+
+		static void ShowEpilogueForNewLines(DiffResult diff, DiffBlock block)
+		{
+			int startIndex = block.InsertStartB + block.InsertCountB;
+			int endIndex = Math.Min(startIndex + 3, diff.PiecesNew.Length);
+			var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
+			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
+		}
 	}
 
 	private static void ShowDiffLines(IEnumerable<string> lines, int lineIndex, string prefix, Vector4 color)
 	{
 		foreach (string line in lines)
 		{
-			ImGui.TableNextColumn();
-			ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.ColorConvertFloat4ToU32(color));
-			if (lineIndex >= 0)
+			if (ImGui.TableNextColumn())
 			{
-				ImGui.TextUnformatted($"{lineIndex++}");
+				ImGui.TableSetBgColor(ImGuiTableBgTarget.RowBg0, ImGui.ColorConvertFloat4ToU32(color));
+				if (lineIndex >= 0)
+				{
+					ImGui.TextUnformatted($"{lineIndex++}");
+				}
 			}
-			ImGui.TableNextColumn();
-			ImGui.TextUnformatted(prefix);
-			ImGui.TableNextColumn();
-			ImGui.TextUnformatted(line);
+			if (ImGui.TableNextColumn())
+			{
+				ImGui.TextUnformatted(prefix);
+			}
+			if (ImGui.TableNextColumn())
+			{
+				ImGui.TextUnformatted(line);
+			}
 		}
 	}
 
@@ -1046,142 +1103,155 @@ internal sealed class ProjectDirector
 		var directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
 		var files = allFilesystemEntries.Except(directories).ToCollection();
 
-		ImGui.BeginTable("CompareBrowser", 3, ImGuiTableFlags.Borders);
-		ImGui.TableSetupColumn("Path", ImGuiTableColumnFlags.WidthStretch, 40);
-		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
-		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
-		ImGui.TableHeadersRow();
-
-		if (!Options.BrowsePath.IsEmpty())
+		if (ImGui.BeginTable("CompareBrowser", 3, ImGuiTableFlags.Borders))
 		{
-			ImGui.TableNextRow();
-			ImGui.TableNextColumn();
-			ImGui.Selectable($"..");
-			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			ImGui.TableSetupColumn("Path", ImGuiTableColumnFlags.WidthStretch, 40);
+			ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
+			ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
+			ImGui.TableHeadersRow();
+
+			if (!Options.BrowsePath.IsEmpty())
 			{
-				string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
-				if (string.IsNullOrEmpty(newPath))
+				ImGui.TableNextRow();
+				if (ImGui.TableNextColumn())
 				{
-					SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, new());
-				}
-				else
-				{
-					SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, (RelativeDirectoryPath)newPath);
+					_ = ImGui.Selectable($"..");
+					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+					{
+						string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
+						if (string.IsNullOrEmpty(newPath))
+						{
+							SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, new());
+						}
+						else
+						{
+							SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, (RelativeDirectoryPath)newPath);
+						}
+					}
 				}
 			}
-		}
 
-		foreach (var path in directories)
-		{
-			bool existsInA = BrowserContentsBase.Contains(path);
-			bool existsInB = BrowserContentsCompare.Contains(path);
-
-			ImGui.TableNextRow();
-			ImGui.TableNextColumn();
-			ImGui.Selectable(path, selected: false, ImGuiSelectableFlags.SpanAllColumns);
-			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			foreach (var path in directories)
 			{
-				var repoA = Options.Repos[Options.BaseRepo];
-				var repoB = Options.Repos[Options.CompareRepo];
-				if (repoA is GitHubRepository githubRepoA && repoB is GitHubRepository githubRepoB)
-				{
-					SwitchCompareBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), (RelativeDirectoryPath)Path.Combine(Options.BrowsePath, path));
+				bool existsInA = BrowserContentsBase.Contains(path);
+				bool existsInB = BrowserContentsCompare.Contains(path);
 
-				}
-				else
+				ImGui.TableNextRow();
+				if (ImGui.TableNextColumn())
 				{
-					throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+					_ = ImGui.Selectable(path, selected: false, ImGuiSelectableFlags.SpanAllColumns);
+					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+					{
+						var repoA = Options.Repos[Options.BaseRepo];
+						var repoB = Options.Repos[Options.CompareRepo];
+						if (repoA is GitHubRepository githubRepoA && repoB is GitHubRepository githubRepoB)
+						{
+							SwitchCompareBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), (RelativeDirectoryPath)Path.Combine(Options.BrowsePath, path));
+
+						}
+						else
+						{
+							throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+						}
+					}
+				}
+				if (ImGui.TableNextColumn() && existsInA != existsInB)
+				{
+					if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
+					{
+						_ = Directory.CreateDirectory(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+					}
+					else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
+					{
+						_ = Directory.CreateDirectory(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+					}
+
+					if (ImGui.IsItemHovered())
+					{
+						if (ImGui.BeginTooltip())
+						{
+							ImGui.TextUnformatted(existsInA ? "Give" : "Take");
+						}
+						ImGui.EndTooltip();
+					}
+				}
+				if (ImGui.TableNextColumn() && existsInA != existsInB)
+				{
+					if (existsInA && ImGui.Button("X##Remove"))
+					{
+						Directory.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+					}
+					else if (existsInB && ImGui.Button("X##Remove"))
+					{
+						Directory.Delete(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+					}
+
+					if (ImGui.IsItemHovered())
+					{
+						if (ImGui.BeginTooltip())
+						{
+							ImGui.TextUnformatted("Delete");
+						}
+						ImGui.EndTooltip();
+					}
 				}
 			}
-			ImGui.TableNextColumn();
 
-			if (existsInA != existsInB)
+			foreach (var path in files)
 			{
-				if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
+				bool existsInA = BrowserContentsBase.Contains(path);
+				bool existsInB = BrowserContentsCompare.Contains(path);
+
+				ImGui.TableNextRow();
+				if (ImGui.TableNextColumn())
 				{
-					Directory.CreateDirectory(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
-				}
-				else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
-				{
-					Directory.CreateDirectory(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+					_ = ImGui.Selectable(path, selected: false, ImGuiSelectableFlags.SpanAllColumns);
 				}
 
-				if (ImGui.IsItemHovered())
+				if (ImGui.TableNextColumn() && existsInA != existsInB)
 				{
-					ImGui.BeginTooltip();
-					ImGui.TextUnformatted(existsInA ? "Give" : "Take");
-					ImGui.EndTooltip();
-				}
-			}
-			ImGui.TableNextColumn();
-			if (existsInA != existsInB)
-			{
-				if (existsInA && ImGui.Button("X##Remove"))
-				{
-					Directory.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
-				}
-				else if (existsInB && ImGui.Button("X##Remove"))
-				{
-					Directory.Delete(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+					if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
+					{
+						string srcPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
+						string dstPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
+						File.Copy(srcPath, dstPath);
+					}
+					else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
+					{
+						string srcPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
+						string dstPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
+						File.Copy(srcPath, dstPath);
+					}
+
+					if (ImGui.IsItemHovered())
+					{
+						if (ImGui.BeginTooltip())
+						{
+							ImGui.TextUnformatted(existsInA ? "Give" : "Take");
+						}
+						ImGui.EndTooltip();
+					}
 				}
 
-				if (ImGui.IsItemHovered())
+				if (ImGui.TableNextColumn() && existsInA != existsInB)
 				{
-					ImGui.BeginTooltip();
-					ImGui.TextUnformatted("Delete");
-					ImGui.EndTooltip();
-				}
-			}
-		}
+					if (existsInA && ImGui.Button("X##Remove"))
+					{
+						File.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+					}
+					else if (existsInB && ImGui.Button("X##Remove"))
+					{
+						File.Delete(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+					}
 
-		foreach (var path in files)
-		{
-			bool existsInA = BrowserContentsBase.Contains(path);
-			bool existsInB = BrowserContentsCompare.Contains(path);
-
-			ImGui.TableNextRow();
-			ImGui.TableNextColumn();
-			ImGui.Selectable(path, selected: false, ImGuiSelectableFlags.SpanAllColumns);
-			ImGui.TableNextColumn();
-			if (existsInA != existsInB)
-			{
-				if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
-				{
-					string srcPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
-					string dstPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
-					File.Copy(srcPath, dstPath);
-				}
-				else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
-				{
-					string srcPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
-					string dstPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
-					File.Copy(srcPath, dstPath);
-				}
-
-				if (ImGui.IsItemHovered())
-				{
-					ImGui.BeginTooltip();
-					ImGui.TextUnformatted(existsInA ? "Give" : "Take");
-					ImGui.EndTooltip();
-				}
-			}
-			ImGui.TableNextColumn();
-			if (existsInA != existsInB)
-			{
-				if (existsInA && ImGui.Button("X##Remove"))
-				{
-					File.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
-				}
-				else if (existsInB && ImGui.Button("X##Remove"))
-				{
-					File.Delete(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
-				}
-
-				if (ImGui.IsItemHovered())
-				{
-					ImGui.BeginTooltip();
-					ImGui.TextUnformatted("Delete");
-					ImGui.EndTooltip();
+					if (ImGui.IsItemHovered())
+					{
+						if (ImGui.BeginTooltip())
+						{
+							ImGui.TextUnformatted("Delete");
+						}
+						ImGui.EndTooltip();
+					}
 				}
 			}
 		}
@@ -1194,96 +1264,111 @@ internal sealed class ProjectDirector
 		var directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
 		var files = allFilesystemEntries.Except(directories).ToCollection();
 
-		ImGui.BeginTable("RepoBrowser", 3, ImGuiTableFlags.Borders);
-		ImGui.TableSetupColumn("Path", ImGuiTableColumnFlags.WidthStretch, 40);
-		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 10);
-		ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
-		ImGui.TableHeadersRow();
-
-		if (!Options.BrowsePath.IsEmpty())
-		{
-			ImGui.TableNextRow();
-			ImGui.TableNextColumn();
-			ImGui.Selectable($"..");
-			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
-			{
-				string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
-				if (string.IsNullOrEmpty(newPath))
-				{
-					SwitchRepoBrowserPath(Options.BaseRepo, new());
-				}
-				else
-				{
-					SwitchRepoBrowserPath(Options.BaseRepo, (RelativeDirectoryPath)newPath);
-				}
-			}
-		}
-
 		bool shouldOpenPopup = false;
 
-		foreach (var path in directories)
+		if (ImGui.BeginTable("RepoBrowser", 3, ImGuiTableFlags.Borders))
 		{
-			ImGui.TableNextRow();
-			ImGui.TableNextColumn();
-			ImGui.Selectable(path);
-			if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+			ImGui.TableSetupColumn("Path", ImGuiTableColumnFlags.WidthStretch, 40);
+			ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 10);
+			ImGui.TableSetupColumn("", ImGuiTableColumnFlags.None, 1);
+			ImGui.TableHeadersRow();
+
+			if (!Options.BrowsePath.IsEmpty())
 			{
-				var repoA = Options.Repos[Options.BaseRepo];
-				if (repoA is GitHubRepository githubRepoA)
+				ImGui.TableNextRow();
+				if (ImGui.TableNextColumn())
 				{
-					SwitchRepoBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), (RelativeDirectoryPath)path.WeakString);
-				}
-				else
-				{
-					throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+					_ = ImGui.Selectable($"..");
+					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+					{
+						string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
+						if (string.IsNullOrEmpty(newPath))
+						{
+							SwitchRepoBrowserPath(Options.BaseRepo, new());
+						}
+						else
+						{
+							SwitchRepoBrowserPath(Options.BaseRepo, (RelativeDirectoryPath)newPath);
+						}
+					}
 				}
 			}
 
-			ImGui.TableNextColumn();
-			//if (ImGui.Button($"Propagate Directory###Propagate{path.Replace(Path.DirectorySeparatorChar, '.').Replace(Path.AltDirectorySeparatorChar, '.')}"))
-			//{
-			//	shouldOpenPopup |= true;
-			//	Options.PropagatePath = path;
-			//}
-
-			ImGui.TableNextColumn();
-			//if (ImGui.Button($"X"))
-			//{
-			//	//Directory.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
-			//}
-
-			//if (ImGui.IsItemHovered())
-			//{
-			//	ImGui.BeginTooltip();
-			//	ImGui.TextUnformatted("Delete Directory");
-			//	ImGui.EndTooltip();
-			//}
-		}
-
-		foreach (var path in files)
-		{
-			ImGui.TableNextRow();
-			ImGui.TableNextColumn();
-			ImGui.Selectable(path);
-			ImGui.TableNextColumn();
-			if (ImGui.Button($"Propagate###Propagate{path.Replace(Path.DirectorySeparatorChar, '.').Replace(Path.AltDirectorySeparatorChar, '.')}"))
+			foreach (var path in directories)
 			{
-				shouldOpenPopup |= true;
-				Options.PropagatePath = path;
+				ImGui.TableNextRow();
+				if (ImGui.TableNextColumn())
+				{
+					_ = ImGui.Selectable(path);
+					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+					{
+						var repoA = Options.Repos[Options.BaseRepo];
+						if (repoA is GitHubRepository githubRepoA)
+						{
+							SwitchRepoBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), (RelativeDirectoryPath)path.WeakString);
+						}
+						else
+						{
+							throw new InvalidOperationException("Only GitHub Repos are supported at this time");
+						}
+					}
+				}
+
+				if (ImGui.TableNextColumn())
+				{
+					//if (ImGui.Button($"Propagate Directory###Propagate{path.Replace(Path.DirectorySeparatorChar, '.').Replace(Path.AltDirectorySeparatorChar, '.')}"))
+					//{
+					//	shouldOpenPopup |= true;
+					//	Options.PropagatePath = path;
+					//}
+				}
+
+				if (ImGui.TableNextColumn())
+				{
+					//if (ImGui.Button($"X"))
+					//{
+					//	//Directory.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+					//}
+
+					//if (ImGui.IsItemHovered())
+					//{
+					//	ImGui.BeginTooltip();
+					//	ImGui.TextUnformatted("Delete Directory");
+					//	ImGui.EndTooltip();
+					//}
+				}
 			}
 
-			ImGui.TableNextColumn();
-			//if (ImGui.Button($"X"))
-			//{
-			//	//File.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
-			//}
+			foreach (var path in files)
+			{
+				ImGui.TableNextRow();
+				if (ImGui.TableNextColumn())
+				{
+					_ = ImGui.Selectable(path);
+				}
 
-			//if (ImGui.IsItemHovered())
-			//{
-			//	ImGui.BeginTooltip();
-			//	ImGui.TextUnformatted("Delete File");
-			//	ImGui.EndTooltip();
-			//}
+				if (ImGui.TableNextColumn()
+					&& ImGui.Button($"Propagate###Propagate{path.Replace(Path.DirectorySeparatorChar, '.').Replace(Path.AltDirectorySeparatorChar, '.')}"))
+				{
+					shouldOpenPopup |= true;
+					Options.PropagatePath = path;
+				}
+
+				if (ImGui.TableNextColumn())
+				{
+					//if (ImGui.Button($"X"))
+					//{
+					//	//File.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+					//}
+
+					//if (ImGui.IsItemHovered())
+					//{
+					//	ImGui.BeginTooltip();
+					//	ImGui.TextUnformatted("Delete File");
+					//	ImGui.EndTooltip();
+					//}
+				}
+			}
 		}
 		ImGui.EndTable();
 
@@ -1291,7 +1376,8 @@ internal sealed class ProjectDirector
 		{
 			PopupPropagateFile.Open(Options);
 		}
-		PopupPropagateFile.ShowIfOpen();
+
+		_ = PopupPropagateFile.ShowIfOpen();
 	}
 
 	private void SwitchCompareBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
@@ -1311,6 +1397,7 @@ internal sealed class ProjectDirector
 		}
 		catch (DirectoryNotFoundException)
 		{
+			// skip this repo
 		}
 
 		try
@@ -1319,6 +1406,7 @@ internal sealed class ProjectDirector
 		}
 		catch (DirectoryNotFoundException)
 		{
+			// skip this repo
 		}
 
 		QueueSaveOptions();
@@ -1340,16 +1428,9 @@ internal sealed class ProjectDirector
 		}
 		catch (DirectoryNotFoundException)
 		{
+			// skip this repo
 		}
 
-		QueueSaveOptions();
-	}
-
-	private void ClearBrowserPath()
-	{
-		Options.BrowsePath = new();
-		BrowserContentsBase.Clear();
-		BrowserContentsCompare.Clear();
 		QueueSaveOptions();
 	}
 }

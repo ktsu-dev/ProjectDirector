@@ -1,3 +1,5 @@
+// Ignore Spelling: Diffs
+
 namespace ktsu.io.ProjectDirector;
 
 using System.Text.Json.Serialization;
@@ -5,7 +7,6 @@ using DiffPlex.Model;
 using ktsu.io.StrongPaths;
 using LibGit2Sharp;
 
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 [JsonDerivedType(typeof(GitHubRepository), nameof(GitHubRepository))]
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "TypeName")]
 public abstract class GitRepository
@@ -46,4 +47,3 @@ public abstract class GitRepository
 		// work out if the repository is behind the remote
 	}
 }
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member

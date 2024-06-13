@@ -7,8 +7,6 @@ using ktsu.io.ImGuiApp;
 using ktsu.io.StrongPaths;
 using ktsu.io.StrongStrings;
 
-#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
-
 public sealed record class GitRemotePath : StrongStringAbstract<GitRemotePath> { }
 public sealed record class GitRemotePathPrefix : StrongStringAbstract<GitRemotePathPrefix> { }
 public sealed record class FullyQualifiedLocalRepoPath : StrongStringAbstract<FullyQualifiedLocalRepoPath> { }
@@ -19,10 +17,10 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 	public ImGuiAppWindowState WindowState { get; set; } = new();
 
 	public GitHubLogin GitHubLogin { get; set; } = new();
-	public GitHubPAT GitHubPAT { get; set; } = new();
+	public GitHubToken GitHubToken { get; set; } = new();
 	public Dictionary<string, bool> PanelStates { get; init; } = [];
 	public Dictionary<string, List<float>> DividerStates { get; init; } = [];
-	public Dictionary<GitHubOwnerName, GitHubPAT> GitHubOwners { get; init; } = [];
+	public Dictionary<GitHubOwnerName, GitHubToken> GitHubOwners { get; init; } = [];
 	public Dictionary<GitHubOwnerName, Octokit.User> GitHubOwnerInfo { get; init; } = [];
 	public Dictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> ClonedRepos { get; init; } = [];
 	public FullyQualifiedGitHubRepoName BaseRepo { get; set; } = new();
@@ -35,4 +33,3 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 	public RelativeDirectoryPath BrowsePath { get; set; } = new();
 	public Dictionary<FullyQualifiedGitHubRepoName, GitRepository> Repos { get; init; } = [];
 }
-#pragma warning restore CS1591 // Missing XML comment for publicly visible type or member
