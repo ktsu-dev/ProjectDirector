@@ -207,20 +207,17 @@ internal sealed class ProjectDirector
 				{
 					if (ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
 					{
-						var task = new Task(() =>
+						Task.Run(() =>
 						{
 							_ = LibGit2Sharp.Repository.Clone(repo.RemotePath, repo.LocalPath);
-						});
-
-						task = task.ContinueWith((t) =>
+						})
+						.ContinueWith((t) =>
 						{
 							RefreshPage();
 						},
 						new CancellationToken(),
 						TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
 						TaskScheduler.Current);
-
-						task.Start();
 					}
 				}
 				else
