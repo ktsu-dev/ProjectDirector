@@ -416,7 +416,7 @@ internal sealed class ProjectDirector
 
 	private void ShowRepos(GitHubOwnerName owner)
 	{
-		foreach (var (repoName, repo) in Options.Repos)
+		foreach (var (repoName, repo) in Options.Repos.OrderBy(r => r.Key))
 		{
 			if (repo is GitHubRepository gitHubRepo)
 			{
