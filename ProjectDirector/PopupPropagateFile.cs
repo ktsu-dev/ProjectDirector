@@ -32,7 +32,8 @@ internal class PopupPropagateFile : PopupModal
 
 		var sortedRepos = repo.SimilarRepoDiffs
 			.ToDictionary(kvp => kvp.Key, hasSimilarFile)
-			.OrderByDescending(kvp => kvp.Value);
+			.OrderByDescending(kvp => kvp.Value)
+			.ThenBy(kvp => kvp.Key);
 
 		ImGui.TextUnformatted("Propagate file to other repos");
 		ImGui.Separator();
