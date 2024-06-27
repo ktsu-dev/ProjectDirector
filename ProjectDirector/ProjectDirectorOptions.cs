@@ -1,8 +1,8 @@
-namespace ktsu.io.ProjectDirector;
+namespace ktsu.ProjectDirector;
 
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using AppDataStorage;
+using ktsu.io.AppDataStorage;
 using ktsu.io.ImGuiApp;
 using ktsu.io.StrongPaths;
 using ktsu.io.StrongStrings;

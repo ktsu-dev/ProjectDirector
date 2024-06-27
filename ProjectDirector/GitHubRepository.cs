@@ -1,4 +1,4 @@
-namespace ktsu.io.ProjectDirector;
+namespace ktsu.ProjectDirector;
 
 using ktsu.io.StrongStrings;
 

@@ -1,4 +1,4 @@
-namespace ktsu.io.ProjectDirector;
+namespace ktsu.ProjectDirector;
 
 using System.Collections.Generic;
 using System.Linq;

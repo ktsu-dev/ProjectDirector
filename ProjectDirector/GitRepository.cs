@@ -1,6 +1,6 @@
 // Ignore Spelling: Diffs
 
-namespace ktsu.io.ProjectDirector;
+namespace ktsu.ProjectDirector;
 
 using System.Text.Json.Serialization;
 using DiffPlex.Model;
