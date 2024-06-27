@@ -1,8 +1,10 @@
 namespace ktsu.io.ProjectDirector;
 
+using System.ClientModel;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO;
 using System.Numerics;
 using System.Text;
@@ -13,6 +15,7 @@ using ktsu.io.Extensions;
 using ktsu.io.ImGuiApp;
 using ktsu.io.ImGuiWidgets;
 using ktsu.io.StrongPaths;
+using OpenAI.Chat;
 
 internal sealed class ProjectDirector
 {
@@ -32,6 +35,8 @@ internal sealed class ProjectDirector
 	private Collection<RelativePath> BrowserContentsCompare { get; set; } = [];
 	private PopupPropagateFile PopupPropagateFile { get; } = new();
 
+	private ChatClient ChatClient { get; init; }
+
 	private static void Main(string[] _)
 	{
 		ProjectDirector projectDirector = new();
@@ -41,7 +46,8 @@ internal sealed class ProjectDirector
 	public ProjectDirector()
 	{
 		Options = ProjectDirectorOptions.LoadOrCreate();
-
+		Options.Save();
+		ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
 		DividerDiff = new("DiffDivider", DividerResized, DividerLayout.Columns);
 		DividerContainerCols = new("VerticalDivider", DividerResized, DividerLayout.Columns);
 		DividerContainerRows = new("HorizontalDivider", DividerResized, DividerLayout.Rows);
@@ -1342,13 +1348,59 @@ internal sealed class ProjectDirector
 				if (ImGui.TableNextColumn())
 				{
 					_ = ImGui.Selectable(path);
+					if (ImGui.BeginPopupContextItem(path, ImGuiPopupFlags.MouseButtonRight))
+					{
+						ImGui.Selectable(path);
+						ImGui.Separator();
+						if (ImGui.Selectable($"Propagate"))
+						{
+							shouldOpenPopup |= true;
+							Options.PropagatePath = path;
+						}
+						if (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+						{
+							if (ImGui.Selectable($"Generate Tests"))
+							{
+
+							}
+
+							if (ImGui.Selectable($"Generate Documentation Comments"))
+							{
+
+							}
+
+							if (ImGui.Selectable($"Generate Readme"))
+							{
+								var repo = Options.Repos[Options.BaseRepo];
+								var csFiles = Directory.EnumerateFiles(repo.LocalPath, "*.cs", SearchOption.AllDirectories);
+								var allFileContents = new StringBuilder();
+								foreach (string file in csFiles)
+								{
+									string relativePath = file.RemovePrefix(repo.LocalPath);
+									allFileContents.AppendLine($"Begin: {relativePath}\n\n" + File.ReadAllText(file) + $"\nEnd: {relativePath}\n\n");
+								}
+
+								var response = ChatClient.CompleteChat("write a github readme file for a project that includes the following files:\n\n" + allFileContents.ToString());
+								_ = LogBuilder.AppendLine(CultureInfo.InvariantCulture, $"[ASSISTANT]: {response.Value}");
+							}
+
+							if (ImGui.Selectable($"Summarize"))
+							{
+								var repo = Options.Repos[Options.BaseRepo];
+								string filePath = Path.Combine(repo.LocalPath, path);
+								string fileContents = File.ReadAllText(filePath);
+								var response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
+								_ = LogBuilder.AppendLine(CultureInfo.InvariantCulture, $"[ASSISTANT]: {response.Value}");
+							}
+						}
+						ImGui.EndPopup();
+					}
 				}
 
-				if (ImGui.TableNextColumn()
-					&& ImGui.Button($"Propagate###Propagate{path.Replace(Path.DirectorySeparatorChar, '.').Replace(Path.AltDirectorySeparatorChar, '.')}"))
+				if (ImGui.TableNextColumn())//&& ImGui.Button($"Propagate###Propagate{path.Replace(Path.DirectorySeparatorChar, '.').Replace(Path.AltDirectorySeparatorChar, '.')}"))
 				{
-					shouldOpenPopup |= true;
-					Options.PropagatePath = path;
+					//shouldOpenPopup |= true;
+					//Options.PropagatePath = path;
 				}
 
 				if (ImGui.TableNextColumn())
