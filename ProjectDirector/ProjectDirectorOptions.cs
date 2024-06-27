@@ -7,6 +7,7 @@ using ktsu.io.ImGuiApp;
 using ktsu.io.StrongPaths;
 using ktsu.io.StrongStrings;
 
+public sealed record class OpenAIToken : StrongStringAbstract<OpenAIToken> { }
 public sealed record class GitRemotePath : StrongStringAbstract<GitRemotePath> { }
 public sealed record class GitRemotePathPrefix : StrongStringAbstract<GitRemotePathPrefix> { }
 public sealed record class FullyQualifiedLocalRepoPath : StrongStringAbstract<FullyQualifiedLocalRepoPath> { }
@@ -18,6 +19,7 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 
 	public GitHubLogin GitHubLogin { get; set; } = new();
 	public GitHubToken GitHubToken { get; set; } = new();
+	public OpenAIToken OpenAIToken { get; set; } = new();
 	public Dictionary<string, bool> PanelStates { get; init; } = [];
 	public Dictionary<string, List<float>> DividerStates { get; init; } = [];
 	public Dictionary<GitHubOwnerName, GitHubToken> GitHubOwners { get; init; } = [];
