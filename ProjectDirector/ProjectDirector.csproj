@@ -6,7 +6,7 @@
   <ItemGroup>
     <PackageReference Include="DiffPlex" Version="1.7.2" />
     <PackageReference Include="ktsu.io.AppDataStorage" Version="1.0.0" />
-    <PackageReference Include="ktsu.io.Extensions" Version="1.0.1" />
+    <PackageReference Include="ktsu.io.Extensions" Version="1.0.2" />
     <PackageReference Include="ktsu.io.ImGuiApp" Version="1.0.0-alpha.15" />
     <PackageReference Include="ktsu.io.ImGuiWidgets" Version="1.0.0-alpha.28" />
     <PackageReference Include="LibGit2Sharp" Version="0.30.0" />
