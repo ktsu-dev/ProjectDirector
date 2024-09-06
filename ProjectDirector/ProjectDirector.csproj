@@ -7,7 +7,7 @@
     <PackageReference Include="DiffPlex" Version="1.7.2" />
     <PackageReference Include="ktsu.io.AppDataStorage" Version="1.1.2" />
     <PackageReference Include="ktsu.io.Extensions" Version="1.0.7" />
-    <PackageReference Include="ktsu.io.ImGuiApp" Version="1.0.0-alpha.22" />
+    <PackageReference Include="ktsu.io.ImGuiApp" Version="1.0.0-alpha.31" />
     <PackageReference Include="ktsu.io.ImGuiWidgets" Version="1.0.0-alpha.34" />
     <PackageReference Include="ktsu.io.ImGuiApp" Version="1.0.0-alpha.31" />
     <PackageReference Include="ktsu.io.ImGuiWidgets" Version="1.0.0-alpha.34" />
