@@ -28,7 +28,6 @@ InstallDir "$PROGRAMFILES64\${APP_NAME}"
 ######################################################################
 
 !include "MUI.nsh"
-!include "DotNetCore.nsh"
 
 !define MUI_ABORTWARNING
 !define MUI_UNABORTWARNING
@@ -74,7 +73,8 @@ SetOutPath "$INSTDIR"
 
 File /r "${PUBLISH_PATH}\*"
 
-#!insertmacro CheckDotNetCore 8.0
+DetailPrint "Installing Visual Studio Redistributable package..."
+ExecWait '"vcredist.exe" /q /norestart'
 
 SectionEnd
 
