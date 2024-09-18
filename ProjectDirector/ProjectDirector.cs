@@ -13,8 +13,11 @@ using DiffPlex.Model;
 using ImGuiNET;
 using ktsu.io.Extensions;
 using ktsu.io.ImGuiApp;
+using ktsu.io.ImGuiPopups;
+using ktsu.io.ImGuiStyler;
 using ktsu.io.ImGuiWidgets;
 using ktsu.io.StrongPaths;
+using Octokit;
 using OpenAI.Chat;
 
 internal sealed class ProjectDirector
@@ -24,13 +27,13 @@ internal sealed class ProjectDirector
 	private DateTime LastSaveOptionsTime { get; set; } = DateTime.MinValue;
 	private DateTime SaveOptionsQueuedTime { get; set; } = DateTime.MinValue;
 	private TimeSpan SaveOptionsDebounceTime { get; } = TimeSpan.FromSeconds(3);
-	private DividerContainer DividerContainerCols { get; }
-	private DividerContainer DividerContainerRows { get; }
-	private DividerContainer DividerDiff { get; }
-	private Octokit.GitHubClient GitHubClient { get; init; }
+	private ImGuiWidgets.DividerContainer DividerContainerCols { get; }
+	private ImGuiWidgets.DividerContainer DividerContainerRows { get; }
+	private ImGuiWidgets.DividerContainer DividerDiff { get; }
+	private GitHubClient GitHubClient { get; init; }
 	private StringBuilder LogBuilder { get; } = new();
-	private PopupInputString PopupSetDevDirectory { get; } = new();
-	private PopupInputString PopupAddNewGitHubOwner { get; } = new();
+	private ImGuiPopups.InputString PopupSetDevDirectory { get; } = new();
+	private ImGuiPopups.InputString PopupAddNewGitHubOwner { get; } = new();
 	private Collection<RelativePath> BrowserContentsBase { get; set; } = [];
 	private Collection<RelativePath> BrowserContentsCompare { get; set; } = [];
 	private PopupPropagateFile PopupPropagateFile { get; } = new();
@@ -48,9 +51,9 @@ internal sealed class ProjectDirector
 		Options = ProjectDirectorOptions.LoadOrCreate();
 		Options.Save();
 		ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
-		DividerDiff = new("DiffDivider", DividerResized, DividerLayout.Columns);
-		DividerContainerCols = new("VerticalDivider", DividerResized, DividerLayout.Columns);
-		DividerContainerRows = new("HorizontalDivider", DividerResized, DividerLayout.Rows);
+		DividerDiff = new("DiffDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
+		DividerContainerCols = new("VerticalDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
+		DividerContainerRows = new("HorizontalDivider", DividerResized, ImGuiWidgets.DividerLayout.Rows);
 		DividerContainerCols.Add("Left", 0.25f, ShowLeftPanel);
 		DividerContainerCols.Add("Right", 0.75f, ShowRightPanel);
 		DividerContainerRows.Add("Top", 0.80f, ShowTopPanel);
@@ -78,7 +81,7 @@ internal sealed class ProjectDirector
 			_ = LogBuilder.AppendLine(logMessage);
 		}));
 
-		GitHubClient = new(new Octokit.ProductHeaderValue("ktsu.io.ProjectDirector"));
+		GitHubClient = new(new ProductHeaderValue("ktsu.io.ProjectDirector"));
 
 		if (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken))
 		{
@@ -94,7 +97,7 @@ internal sealed class ProjectDirector
 		QueueSaveOptions();
 	}
 
-	private void DividerResized(DividerContainer container)
+	private void DividerResized(ImGuiWidgets.DividerContainer container)
 	{
 		Options.DividerStates[container.Id] = new(container.GetSizes());
 		QueueSaveOptions();
@@ -228,8 +231,31 @@ internal sealed class ProjectDirector
 				}
 				else
 				{
+					if (ImGui.Button("Open in GHD", new Vector2(FieldWidth, 0)))
+					{
+						_ = Process.Start(new ProcessStartInfo()
+						{
+							FileName = "github",
+							Arguments = repo.LocalPath,
+							UseShellExecute = true,
+							WindowStyle = ProcessWindowStyle.Hidden,
+							Verb = "open",
+						});
+					}
+					ImGui.SameLine();
+					if (ImGui.Button("Open in Explorer", new Vector2(FieldWidth, 0)))
+					{
+						_ = Process.Start(new ProcessStartInfo()
+						{
+							FileName = "explorer",
+							Arguments = repo.LocalPath,
+							UseShellExecute = true,
+							Verb = "open",
+						});
+					}
+
 					int fetchInterval = repo.MinFetchIntervalSeconds;
-					if (Knob.Draw("Min Fetch Interval", ref fetchInterval, 0, 300, 150))
+					if (ImGuiWidgets.Knob("Min Fetch Interval", ref fetchInterval, 0, 300, 150))
 					{
 						repo.MinFetchIntervalSeconds = fetchInterval;
 					}
@@ -237,7 +263,7 @@ internal sealed class ProjectDirector
 					ImGui.SameLine();
 
 					int timeUntilFetch = fetchInterval - (int)(DateTime.UtcNow - repo.LastFetchTime).TotalSeconds;
-					_ = Knob.Draw("Fetch In", ref timeUntilFetch, 0, 300, 150);
+					_ = ImGuiWidgets.Knob("Fetch In", ref timeUntilFetch, 0, 300, 150);
 
 					if (ImGui.Button("Pull", new Vector2(FieldWidth, 0)))
 					{
@@ -426,7 +452,7 @@ internal sealed class ProjectDirector
 				if (gitHubRepo.OwnerName == owner)
 				{
 					bool isCloned = Options.ClonedRepos.ContainsKey(repo.LocalPath);
-					ColorIndicator.Show(Color.Green, isCloned);
+					ImGuiWidgets.ColorIndicator(Color.Green, isCloned);
 					ImGui.SameLine();
 					bool isSelected = Options.BaseRepo == repoName;
 					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
@@ -460,9 +486,9 @@ internal sealed class ProjectDirector
 
 		try
 		{
-			IEnumerable<Octokit.Repository> remoteRepos = GitHubClient.Repository.GetAllForUser(owner).Result;
+			IEnumerable<Repository> remoteRepos = GitHubClient.Repository.GetAllForUser(owner).Result;
 
-			if (ownerInfo.Type == Octokit.AccountType.Organization)
+			if (ownerInfo.Type == AccountType.Organization)
 			{
 				remoteRepos = remoteRepos.Concat(GitHubClient.Repository.GetAllForOrg(owner).Result);
 			}
@@ -489,7 +515,7 @@ internal sealed class ProjectDirector
 
 			QueueSaveOptions();
 		}
-		catch (Octokit.ApiException)
+		catch (ApiException)
 		{
 			// skip this owner
 		}
@@ -543,7 +569,7 @@ internal sealed class ProjectDirector
 		return wasCloned != isCloned;
 	}
 
-	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(Octokit.Repository repo) => (FullyQualifiedGitHubRepoName)repo.FullName.Replace('/', '.');
+	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(Repository repo) => (FullyQualifiedGitHubRepoName)repo.FullName.Replace('/', '.');
 	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(GitHubOwnerName ownerName, GitHubRepoName repoName) => (FullyQualifiedGitHubRepoName)$"{ownerName}.{repoName}";
 
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
@@ -1463,6 +1489,11 @@ internal sealed class ProjectDirector
 
 	private void SwitchRepoBrowserPath(FullyQualifiedGitHubRepoName baseRepo, RelativeDirectoryPath newPath)
 	{
+		if (baseRepo.IsEmpty())
+		{
+			return;
+		}
+
 		Options.BrowsePath = newPath;
 		var repoA = Options.Repos[baseRepo];
 

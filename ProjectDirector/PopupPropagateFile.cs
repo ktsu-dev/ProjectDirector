@@ -3,14 +3,15 @@ namespace ktsu.ProjectDirector;
 using DiffPlex.Model;
 using ImGuiNET;
 using ktsu.io.Extensions;
-using ktsu.io.ImGuiWidgets;
+using ktsu.io.ImGuiPopups;
 using ktsu.io.StrongPaths;
 
-internal class PopupPropagateFile : PopupModal
+internal class PopupPropagateFile
 {
+	private ImGuiPopups.Modal Modal { get; } = new();
 	private ProjectDirectorOptions Options { get; set; } = new();
 	private Dictionary<FullyQualifiedGitHubRepoName, bool> Propagation { get; } = [];
-	private PopupPrompt Prompt { get; } = new();
+	private ImGuiPopups.Prompt Prompt { get; } = new();
 	private bool ShouldClose { get; set; }
 
 	public void Open(ProjectDirectorOptions options)
@@ -18,12 +19,10 @@ internal class PopupPropagateFile : PopupModal
 		ShouldClose = false;
 		Options = options;
 		Propagation.Clear();
-		base.Open("Propagate File");
+		Modal.Open("Propagate File", ShowContent);
 	}
 
-	public override void Open(string title) => throw new InvalidOperationException("Use Open(ProjectDirectorOptions) instead");
-
-	protected override void ShowContent()
+	protected void ShowContent()
 	{
 		string normalizePath(string path) => path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
 		bool hasSimilarFile(KeyValuePair<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> kvp) => kvp.Value.Any(x => normalizePath(x.Key) == normalizePath(Options.PropagatePath));
@@ -87,4 +86,10 @@ internal class PopupPropagateFile : PopupModal
 
 		ShouldClose = true;
 	}
+
+	/// <summary>
+	/// Show the modal if it is open.
+	/// </summary>
+	/// <returns>True if the modal is open.</returns>
+	public bool ShowIfOpen() => Modal.ShowIfOpen();
 }
