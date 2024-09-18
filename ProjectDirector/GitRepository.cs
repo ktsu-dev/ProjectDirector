@@ -4,7 +4,7 @@ namespace ktsu.ProjectDirector;
 
 using System.Text.Json.Serialization;
 using DiffPlex.Model;
-using ktsu.io.StrongPaths;
+using ktsu.StrongPaths;
 using LibGit2Sharp;
 
 [JsonDerivedType(typeof(GitHubRepository), nameof(GitHubRepository))]

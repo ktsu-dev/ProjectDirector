@@ -2,9 +2,9 @@ namespace ktsu.ProjectDirector;
 
 using DiffPlex.Model;
 using ImGuiNET;
-using ktsu.io.Extensions;
-using ktsu.io.ImGuiPopups;
-using ktsu.io.StrongPaths;
+using ktsu.Extensions;
+using ktsu.ImGuiPopups;
+using ktsu.StrongPaths;
 
 internal class PopupPropagateFile
 {

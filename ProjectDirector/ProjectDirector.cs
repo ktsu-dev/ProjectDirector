@@ -11,12 +11,12 @@ using System.Text;
 using DiffPlex;
 using DiffPlex.Model;
 using ImGuiNET;
-using ktsu.io.Extensions;
-using ktsu.io.ImGuiApp;
-using ktsu.io.ImGuiPopups;
-using ktsu.io.ImGuiStyler;
-using ktsu.io.ImGuiWidgets;
-using ktsu.io.StrongPaths;
+using ktsu.Extensions;
+using ktsu.ImGuiApp;
+using ktsu.ImGuiPopups;
+using ktsu.ImGuiStyler;
+using ktsu.ImGuiWidgets;
+using ktsu.StrongPaths;
 using Octokit;
 using OpenAI.Chat;
 

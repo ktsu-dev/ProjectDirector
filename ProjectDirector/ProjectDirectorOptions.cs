@@ -2,10 +2,10 @@ namespace ktsu.ProjectDirector;
 
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
-using ktsu.io.AppDataStorage;
-using ktsu.io.ImGuiApp;
-using ktsu.io.StrongPaths;
-using ktsu.io.StrongStrings;
+using ktsu.AppDataStorage;
+using ktsu.ImGuiApp;
+using ktsu.StrongPaths;
+using ktsu.StrongStrings;
 
 public sealed record class OpenAIToken : StrongStringAbstract<OpenAIToken> { }
 public sealed record class GitRemotePath : StrongStringAbstract<GitRemotePath> { }

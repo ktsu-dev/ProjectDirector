@@ -1,6 +1,6 @@
 namespace ktsu.ProjectDirector;
 
-using ktsu.io.StrongStrings;
+using ktsu.StrongStrings;
 
 public sealed record class GitHubOwnerName : StrongStringAbstract<GitHubOwnerName> { }
 public sealed record class GitHubRepoName : StrongStringAbstract<GitHubRepoName> { }
