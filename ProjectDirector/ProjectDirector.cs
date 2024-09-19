@@ -1,10 +1,10 @@
 namespace ktsu.ProjectDirector;
 
 using System.ClientModel;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
-using System.Globalization;
 using System.IO;
 using System.Numerics;
 using System.Text;
@@ -31,7 +31,7 @@ internal sealed class ProjectDirector
 	private ImGuiWidgets.DividerContainer DividerContainerRows { get; }
 	private ImGuiWidgets.DividerContainer DividerDiff { get; }
 	private GitHubClient GitHubClient { get; init; }
-	private StringBuilder LogBuilder { get; } = new();
+	private ConcurrentQueue<string> LogQueue { get; } = new();
 	private ImGuiPopups.InputString PopupSetDevDirectory { get; } = new();
 	private ImGuiPopups.InputString PopupAddNewGitHubOwner { get; } = new();
 	private Collection<RelativePath> BrowserContentsBase { get; set; } = [];
@@ -45,6 +45,8 @@ internal sealed class ProjectDirector
 		ProjectDirector projectDirector = new();
 		ImGuiApp.Start(nameof(ProjectDirector), projectDirector.Options.WindowState, null, projectDirector.Tick, projectDirector.ShowMenu, projectDirector.WindowResized);
 	}
+
+	private const int LogLinesMax = 100;
 
 	public ProjectDirector()
 	{
@@ -77,8 +79,8 @@ internal sealed class ProjectDirector
 
 		LibGit2Sharp.GlobalSettings.LogConfiguration = new(LibGit2Sharp.LogLevel.Debug, new((level, message) =>
 		{
-			string logMessage = $"[{level}] {message}";
-			_ = LogBuilder.AppendLine(logMessage);
+			string logMessage = $"[{level} {DateTimeOffset.Now}] {message}";
+			QueueLog(logMessage);
 		}));
 
 		GitHubClient = new(new ProductHeaderValue("ktsu.io.ProjectDirector"));
@@ -89,6 +91,15 @@ internal sealed class ProjectDirector
 		}
 
 		RefreshPage();
+	}
+
+	private void QueueLog(string logMessage)
+	{
+		LogQueue.Enqueue(logMessage);
+		while (LogQueue.Count > LogLinesMax)
+		{
+			LogQueue.TryDequeue(out _);
+		}
 	}
 
 	private void WindowResized()
@@ -138,29 +149,49 @@ internal sealed class ProjectDirector
 		}
 	}
 
-	private void FetchReposIfRequired()
+	private void FetchAllReposIfStale() => Options.ClonedRepos.Values.ForEach(FetchRepoIfStale);
+	private void FetchAllRepos() => Options.ClonedRepos.Values.ForEach(FetchRepo);
+
+	private void FetchRepo(FullyQualifiedGitHubRepoName repoName)
 	{
-		foreach (var (repoPath, repoName) in Options.ClonedRepos)
+		if (Options.Repos.TryGetValue(repoName, out var repo))
 		{
-			if (Options.Repos.TryGetValue(repoName, out var repo)
-				&& repo.MinFetchIntervalSeconds > 0
-				&& (DateTime.UtcNow - repo.LastFetchTime) > TimeSpan.FromSeconds(repo.MinFetchIntervalSeconds))
-			{
-				repo.LastFetchTime = DateTime.UtcNow;
-				QueueSaveOptions();
-
-				var task = new Task(() =>
-				{
-					var localRepo = new LibGit2Sharp.Repository(repoPath);
-					var fetchOptions = new LibGit2Sharp.FetchOptions();
-					var origin = localRepo.Network.Remotes["origin"];
-					var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
-					//LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repoName}");
-				});
-
-				task.Start();
-			}
+			FetchRepo(repo);
 		}
+	}
+
+	private void FetchRepoIfStale(FullyQualifiedGitHubRepoName repoName)
+	{
+		if (Options.Repos.TryGetValue(repoName, out var repo))
+		{
+			FetchRepoIfStale(repo);
+		}
+	}
+
+	private void FetchRepoIfStale(GitRepository repo)
+	{
+		if (repo.MinFetchIntervalSeconds > 0 && (DateTime.UtcNow - repo.LastFetchTime) > TimeSpan.FromSeconds(repo.MinFetchIntervalSeconds))
+		{
+			FetchRepo(repo);
+		}
+	}
+
+	private void FetchRepo(GitRepository repo)
+	{
+		var repoPath = repo.LocalPath;
+		repo.LastFetchTime = DateTime.UtcNow;
+		QueueSaveOptions();
+
+		var task = new Task(() =>
+		{
+			var localRepo = new LibGit2Sharp.Repository(repoPath);
+			var fetchOptions = new LibGit2Sharp.FetchOptions();
+			var origin = localRepo.Network.Remotes["origin"];
+			var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
+			LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repo.RemotePath}");
+		});
+
+		task.Start();
 	}
 
 	private void SwitchPage(FullyQualifiedGitHubRepoName baseRepo)
@@ -198,7 +229,7 @@ internal sealed class ProjectDirector
 		_ = PopupSetDevDirectory.ShowIfOpen();
 		_ = PopupAddNewGitHubOwner.ShowIfOpen();
 
-		FetchReposIfRequired();
+		FetchAllReposIfStale();
 		SaveOptionsIfRequired();
 	}
 
@@ -316,7 +347,7 @@ internal sealed class ProjectDirector
 	{
 		if (ImGui.BeginChild("Log", new Vector2(0, 0), true, ImGuiWindowFlags.HorizontalScrollbar))
 		{
-			ImGui.TextUnformatted(LogBuilder.ToString());
+			LogQueue.ForEach(ImGui.TextUnformatted);
 			ImGui.SetScrollHereY(1);
 		}
 
@@ -326,6 +357,11 @@ internal sealed class ProjectDirector
 	private void ShowLeftPanel(float dt)
 	{
 		ImGui.TextUnformatted($"Dev Dir: {Options.DevDirectory}");
+
+		if (ImGui.Button("Fetch All"))
+		{
+			FetchAllRepos();
+		}
 
 		ShowOwners();
 	}
@@ -1407,7 +1443,7 @@ internal sealed class ProjectDirector
 								}
 
 								var response = ChatClient.CompleteChat("write a github readme file for a project that includes the following files:\n\n" + allFileContents.ToString());
-								_ = LogBuilder.AppendLine(CultureInfo.InvariantCulture, $"[ASSISTANT]: {response.Value}");
+								QueueLog($"[ASSISTANT]: {response.Value}");
 							}
 
 							if (ImGui.Selectable($"Summarize"))
@@ -1416,7 +1452,7 @@ internal sealed class ProjectDirector
 								string filePath = Path.Combine(repo.LocalPath, path);
 								string fileContents = File.ReadAllText(filePath);
 								var response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
-								_ = LogBuilder.AppendLine(CultureInfo.InvariantCulture, $"[ASSISTANT]: {response.Value}");
+								QueueLog($"[ASSISTANT]: {response.Value}");
 							}
 						}
 						ImGui.EndPopup();
