@@ -8,8 +8,8 @@
     <PackageReference Include="ktsu.AppDataStorage" Version="1.1.7" />
     <PackageReference Include="ktsu.Extensions" Version="1.0.12" />
     <PackageReference Include="ktsu.ImGuiApp" Version="1.0.0-alpha.36" />
-    <PackageReference Include="ktsu.ImGuiPopups" Version="1.0.0-alpha.3" />
-    <PackageReference Include="ktsu.ImGuiStyler" Version="1.0.0-alpha.19" />
+    <PackageReference Include="ktsu.ImGuiPopups" Version="1.0.0-alpha.10" />
+    <PackageReference Include="ktsu.ImGuiStyler" Version="1.0.0-alpha.22" />
     <PackageReference Include="ktsu.ImGuiWidgets" Version="1.0.0-alpha.43" />
     <PackageReference Include="LibGit2Sharp" Version="0.30.0" />
     <PackageReference Include="Octokit" Version="13.0.1" />
