@@ -10,7 +10,7 @@
     <PackageReference Include="ktsu.ImGuiApp" Version="1.0.0-alpha.51" />
     <PackageReference Include="ktsu.ImGuiPopups" Version="1.0.0-alpha.23" />
     <PackageReference Include="ktsu.ImGuiStyler" Version="1.0.0-alpha.36" />
-    <PackageReference Include="ktsu.ImGuiWidgets" Version="1.0.0-alpha.59" />
+    <PackageReference Include="ktsu.ImGuiWidgets" Version="1.0.0-alpha.61" />
     <PackageReference Include="LibGit2Sharp" Version="0.30.0" />
     <PackageReference Include="Octokit" Version="13.0.1" />
     <PackageReference Include="OpenAI" Version="2.0.0" />
