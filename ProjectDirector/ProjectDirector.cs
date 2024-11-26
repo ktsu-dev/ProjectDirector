@@ -151,12 +151,21 @@ internal sealed class ProjectDirector
 
 	private void FetchAllReposIfStale() => Options.ClonedRepos.Values.ForEach(FetchRepoIfStale);
 	private void FetchAllRepos() => Options.ClonedRepos.Values.ForEach(FetchRepo);
+	private void PullAllRepos() => Options.ClonedRepos.Values.ForEach(PullRepo);
 
 	private void FetchRepo(FullyQualifiedGitHubRepoName repoName)
 	{
 		if (Options.Repos.TryGetValue(repoName, out var repo))
 		{
 			FetchRepo(repo);
+		}
+	}
+
+	private void PullRepo(FullyQualifiedGitHubRepoName repoName)
+	{
+		if (Options.Repos.TryGetValue(repoName, out var repo))
+		{
+			PullRepo(repo);
 		}
 	}
 
@@ -189,6 +198,34 @@ internal sealed class ProjectDirector
 			var origin = localRepo.Network.Remotes["origin"];
 			var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
 			LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repo.RemotePath}");
+		});
+
+		task.Start();
+	}
+
+	private static void PullRepo(GitRepository repo)
+	{
+		var repoPath = repo.LocalPath;
+		var task = new Task(() =>
+		{
+			var localRepo = new LibGit2Sharp.Repository(repoPath);
+			var fetchOptions = new LibGit2Sharp.FetchOptions();
+			var origin = localRepo.Network.Remotes["origin"];
+			var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
+			try
+			{
+				_ = LibGit2Sharp.Commands.Pull(localRepo, new("ProjectDirector", "ProjectDirector@ktsu.dev", DateTimeOffset.Now), new()
+				{
+					FetchOptions = new(),
+					MergeOptions = new()
+					{
+						CommitOnSuccess = true,
+					},
+				});
+			}
+			catch (LibGit2Sharp.CheckoutConflictException)
+			{
+			}
 		});
 
 		task.Start();
@@ -345,7 +382,7 @@ internal sealed class ProjectDirector
 
 	private void ShowBottomPanel(float dt)
 	{
-		if (ImGui.BeginChild("Log", new Vector2(0, 0), true, ImGuiWindowFlags.HorizontalScrollbar))
+		if (ImGui.BeginChild("Log", new Vector2(0, 0), ImGuiChildFlags.Border, ImGuiWindowFlags.HorizontalScrollbar))
 		{
 			LogQueue.ForEach(ImGui.TextUnformatted);
 			ImGui.SetScrollHereY(1);
@@ -361,6 +398,11 @@ internal sealed class ProjectDirector
 		if (ImGui.Button("Fetch All"))
 		{
 			FetchAllRepos();
+		}
+		ImGui.SameLine();
+		if (ImGui.Button("Pull All"))
+		{
+			PullAllRepos();
 		}
 
 		ShowOwners();
@@ -900,7 +942,7 @@ internal sealed class ProjectDirector
 		ShowWholeDiffSummary(diff);
 
 		ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));
-		if (ImGui.BeginChild("Diff", new(0, 0), border: false, ImGuiWindowFlags.NoDecoration))
+		if (ImGui.BeginChild("Diff", new(0, 0), ImGuiChildFlags.None, ImGuiWindowFlags.NoDecoration))
 		{
 			ImGui.PopStyleVar();
 			DividerDiff.Tick(dt);

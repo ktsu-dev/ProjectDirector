@@ -4,3 +4,16 @@ updates:
   directory: "/"
   schedule:
     interval: "daily"
+  groups:
+    ktsu:
+      patterns:
+        - "ktsu.*"
+    Microsoft:
+      patterns:
+        - "Microsoft.*"
+    System:
+      patterns:
+        - "System.*"
+    Silk:
+      patterns:
+        - "Silk.NET.*"
