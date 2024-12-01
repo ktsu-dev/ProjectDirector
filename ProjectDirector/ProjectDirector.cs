@@ -83,7 +83,7 @@ internal sealed class ProjectDirector
 			QueueLog(logMessage);
 		}));
 
-		GitHubClient = new(new ProductHeaderValue("ktsu.io.ProjectDirector"));
+		GitHubClient = new(new ProductHeaderValue("ktsu.ProjectDirector"));
 
 		if (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken))
 		{
@@ -322,16 +322,16 @@ internal sealed class ProjectDirector
 						});
 					}
 
-					int fetchInterval = repo.MinFetchIntervalSeconds;
-					if (ImGuiWidgets.Knob("Min Fetch Interval", ref fetchInterval, 0, 300, 150))
-					{
-						repo.MinFetchIntervalSeconds = fetchInterval;
-					}
+					//int fetchInterval = repo.MinFetchIntervalSeconds;
+					//if (ImGuiWidgets.Knob("Min Fetch Interval", ref fetchInterval, 0, 300, 150))
+					//{
+					//	repo.MinFetchIntervalSeconds = fetchInterval;
+					//}
 
-					ImGui.SameLine();
+					//ImGui.SameLine();
 
-					int timeUntilFetch = fetchInterval - (int)(DateTime.UtcNow - repo.LastFetchTime).TotalSeconds;
-					_ = ImGuiWidgets.Knob("Fetch In", ref timeUntilFetch, 0, 300, 150);
+					//int timeUntilFetch = fetchInterval - (int)(DateTime.UtcNow - repo.LastFetchTime).TotalSeconds;
+					//_ = ImGuiWidgets.Knob("Fetch In", ref timeUntilFetch, 0, 300, 150);
 
 					if (ImGui.Button("Pull", new Vector2(FieldWidth, 0)))
 					{
@@ -880,51 +880,53 @@ internal sealed class ProjectDirector
 		ImGui.SameLine();
 		ImGui.TextUnformatted($"Comparing {Options.BaseRepo} vs {Options.CompareRepo}");
 
-		var diffs = repo.SimilarRepoDiffs[Options.CompareRepo];
-		var sortedDiffs = diffs
-			.ToDictionary(kvp => kvp.Key, CountChangedLinesInDiffBlock)
-			.Where(kvp => kvp.Value > 0)
-			.OrderBy(kvp => kvp.Value)
-			.Select(kvp => kvp.Key);
-
-		if (ImGui.BeginTable("SimilarFiles", 3, ImGuiTableFlags.Borders))
+		if (repo.SimilarRepoDiffs.TryGetValue(Options.CompareRepo, out var diffs))
 		{
-			ImGui.TableSetupColumn("Similar Files", ImGuiTableColumnFlags.WidthStretch, 40);
-			ImGui.TableSetupColumn("Deletions", ImGuiTableColumnFlags.None, 4);
-			ImGui.TableSetupColumn("Additions", ImGuiTableColumnFlags.None, 4);
-			ImGui.TableHeadersRow();
+			var sortedDiffs = diffs
+				.ToDictionary(kvp => kvp.Key, CountChangedLinesInDiffBlock)
+				.Where(kvp => kvp.Value > 0)
+				.OrderBy(kvp => kvp.Value)
+				.Select(kvp => kvp.Key);
 
-			foreach (var filePath in sortedDiffs)
+			if (ImGui.BeginTable("SimilarFiles", 3, ImGuiTableFlags.Borders))
 			{
-				var diff = diffs[filePath];
+				ImGui.TableSetupColumn("Similar Files", ImGuiTableColumnFlags.WidthStretch, 40);
+				ImGui.TableSetupColumn("Deletions", ImGuiTableColumnFlags.None, 4);
+				ImGui.TableSetupColumn("Additions", ImGuiTableColumnFlags.None, 4);
+				ImGui.TableHeadersRow();
 
-				ImGui.TableNextRow();
-				if (ImGui.TableNextColumn())
+				foreach (var filePath in sortedDiffs)
 				{
-					_ = ImGui.Selectable(filePath, selected: false, ImGuiSelectableFlags.SpanAllColumns);
-					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+					var diff = diffs[filePath];
+
+					ImGui.TableNextRow();
+					if (ImGui.TableNextColumn())
 					{
-						SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
+						_ = ImGui.Selectable(filePath, selected: false, ImGuiSelectableFlags.SpanAllColumns);
+						if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
+						{
+							SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
+						}
+					}
+					if (ImGui.TableNextColumn())
+					{
+						ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.DeleteCountA)}");
+					}
+					if (ImGui.TableNextColumn())
+					{
+						ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.InsertCountB)}");
 					}
 				}
-				if (ImGui.TableNextColumn())
-				{
-					ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.DeleteCountA)}");
-				}
-				if (ImGui.TableNextColumn())
-				{
-					ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.InsertCountB)}");
-				}
 			}
+			ImGui.EndTable();
+
+			ImGui.NewLine();
+			ShowCompareBrowser();
 		}
-		ImGui.EndTable();
-
-		ImGui.NewLine();
-		ShowCompareBrowser();
-
-		static int CountChangedLinesInDiffBlock(KeyValuePair<RelativeFilePath, DiffResult> kvp) =>
-			kvp.Value.DiffBlocks.Sum(y => y.InsertCountB + y.DeleteCountA);
 	}
+
+	private static int CountChangedLinesInDiffBlock(KeyValuePair<RelativeFilePath, DiffResult> kvp) =>
+					kvp.Value.DiffBlocks.Sum(y => y.InsertCountB + y.DeleteCountA);
 
 	private void ShowComparedFile(float dt, GitRepository repo)
 	{
@@ -1368,7 +1370,8 @@ internal sealed class ProjectDirector
 	private void ShowRepoBrowser()
 	{
 		var allFilesystemEntries = BrowserContentsBase;
-		var directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
+		var baseRepo = Options.Repos[Options.BaseRepo];
+		var directories = allFilesystemEntries.Where(x => Directory.Exists(Path.Combine(baseRepo.LocalPath, Options.BrowsePath, x))).ToCollection();
 		var files = allFilesystemEntries.Except(directories).ToCollection();
 
 		bool shouldOpenPopup = false;

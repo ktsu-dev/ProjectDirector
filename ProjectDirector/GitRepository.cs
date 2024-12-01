@@ -8,6 +8,7 @@ using ktsu.StrongPaths;
 using LibGit2Sharp;
 
 [JsonDerivedType(typeof(GitHubRepository), nameof(GitHubRepository))]
+[JsonDerivedType(typeof(AzureDevOpsRepository), nameof(AzureDevOpsRepository))]
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "TypeName")]
 public abstract class GitRepository
 {
