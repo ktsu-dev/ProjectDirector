@@ -7,10 +7,10 @@
   <ItemGroup>
     <PackageReference Include="DiffPlex" Version="1.7.2" />
     <PackageReference Include="ktsu.AppDataStorage" Version="1.1.51" />
-    <PackageReference Include="ktsu.Extensions" Version="1.0.35" />
-    <PackageReference Include="ktsu.ImGuiApp" Version="1.0.0-alpha.73" />
-    <PackageReference Include="ktsu.ImGuiPopups" Version="1.0.0-alpha.62" />
-    <PackageReference Include="ktsu.ImGuiStyler" Version="1.0.0-alpha.64" />
+    <PackageReference Include="ktsu.Extensions" Version="1.0.36" />
+    <PackageReference Include="ktsu.ImGuiApp" Version="1.0.0-alpha.74" />
+    <PackageReference Include="ktsu.ImGuiPopups" Version="1.0.0-alpha.63" />
+    <PackageReference Include="ktsu.ImGuiStyler" Version="1.0.0-alpha.65" />
     <PackageReference Include="ktsu.ImGuiWidgets" Version="1.0.0-alpha.107" />
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
     <PackageReference Include="Microsoft.DotNet.ILCompiler" Version="9.0.0" />
