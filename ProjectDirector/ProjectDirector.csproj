@@ -6,8 +6,8 @@
 
   <ItemGroup>
     <PackageReference Include="DiffPlex" Version="1.7.2" />
-    <PackageReference Include="ktsu.AppDataStorage" Version="1.2.0" />
-    <PackageReference Include="ktsu.Extensions" Version="1.2.1" />
+    <PackageReference Include="ktsu.AppDataStorage" Version="1.2.1" />
+    <PackageReference Include="ktsu.Extensions" Version="1.2.2" />
     <PackageReference Include="ktsu.ImGuiApp" Version="1.0.3" />
     <PackageReference Include="ktsu.ImGuiPopups" Version="1.0.0-alpha.77" />
     <PackageReference Include="ktsu.ImGuiStyler" Version="1.0.6" />
