@@ -4,6 +4,7 @@ Changes since v1.0.0-alpha.1:
 
 - Add automation scripts for metadata and version management ([@matt-edmondson](https://github.com/matt-edmondson))
 - Add Azure DevOps support and update GitHub client header ([@matt-edmondson](https://github.com/matt-edmondson))
+- Add documentation comments ([@matt-edmondson](https://github.com/matt-edmondson))
 - Delete global.json ([@matt-edmondson](https://github.com/matt-edmondson))
 - Fix clone task ([@matt-edmondson](https://github.com/matt-edmondson))
 - Fix sorting on propagate file dialog ([@matt-edmondson](https://github.com/matt-edmondson))
