@@ -1,4 +1,4 @@
-## v1.1.0 (minor)
+## v1.0.0 (patch)
 
 Changes since v1.0.0-alpha.1:
 
