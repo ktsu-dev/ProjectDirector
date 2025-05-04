@@ -1,3 +1,7 @@
+// Copyright (c) ktsu.dev
+// All rights reserved.
+// Licensed under the MIT license.
+
 namespace ktsu.ProjectDirector;
 
 using System.Collections.Generic;
@@ -12,6 +16,7 @@ public sealed class DictionaryOfHashSets<TKey, TValue> : Dictionary<TKey, HashSe
 			collection = [];
 			Add(key, collection);
 		}
+
 		collection.Add(value);
 	}
 

@@ -1,3 +1,7 @@
+// Copyright (c) ktsu.dev
+// All rights reserved.
+// Licensed under the MIT license.
+
 namespace ktsu.ProjectDirector;
 
 using System.ClientModel;
@@ -79,7 +83,7 @@ internal sealed class ProjectDirector
 
 		LibGit2Sharp.GlobalSettings.LogConfiguration = new(LibGit2Sharp.LogLevel.Debug, new((level, message) =>
 		{
-			string logMessage = $"[{level} {DateTimeOffset.Now}] {message}";
+			var logMessage = $"[{level} {DateTimeOffset.Now}] {message}";
 			QueueLog(logMessage);
 		}));
 
@@ -110,7 +114,7 @@ internal sealed class ProjectDirector
 
 	private void DividerResized(ImGuiWidgets.DividerContainer container)
 	{
-		Options.DividerStates[container.Id] = new(container.GetSizes());
+		Options.DividerStates[container.Id] = [.. container.GetSizes()];
 		QueueSaveOptions();
 	}
 
@@ -256,6 +260,7 @@ internal sealed class ProjectDirector
 		{
 			SwitchCompareBrowserPath(baseRepo, compareRepo, new());
 		}
+
 		QueueSaveOptions();
 	}
 
@@ -284,14 +289,8 @@ internal sealed class ProjectDirector
 				{
 					if (ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
 					{
-						Task.Run(() =>
-						{
-							_ = LibGit2Sharp.Repository.Clone(repo.RemotePath, repo.LocalPath);
-						})
-						.ContinueWith((t) =>
-						{
-							RefreshPage();
-						},
+						Task.Run(() => _ = LibGit2Sharp.Repository.Clone(repo.RemotePath, repo.LocalPath))
+						.ContinueWith((t) => RefreshPage(),
 						new CancellationToken(),
 						TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
 						TaskScheduler.Current);
@@ -310,6 +309,7 @@ internal sealed class ProjectDirector
 							Verb = "open",
 						});
 					}
+
 					ImGui.SameLine();
 					if (ImGui.Button("Open in Explorer", new Vector2(FieldWidth, 0)))
 					{
@@ -347,6 +347,7 @@ internal sealed class ProjectDirector
 
 						//task.Start();
 					}
+
 					ImGui.SameLine();
 					_ = ImGui.Button("Commit", new Vector2(FieldWidth, 0)); // TODO
 					ImGui.SameLine();
@@ -377,6 +378,7 @@ internal sealed class ProjectDirector
 			_ = UpdateClonedStatus(repo);
 			UpdateSimilarRepos(repo);
 		}
+
 		SwitchPage(Options.BaseRepo, Options.CompareRepo, Options.CompareFile);
 	}
 
@@ -399,6 +401,7 @@ internal sealed class ProjectDirector
 		{
 			FetchAllRepos();
 		}
+
 		ImGui.SameLine();
 		if (ImGui.Button("Pull All"))
 		{
@@ -412,7 +415,7 @@ internal sealed class ProjectDirector
 
 	private void ShowCollapsiblePanel(string name, Action contentDelegate)
 	{
-		if (!Options.PanelStates.TryGetValue(name, out bool open))
+		if (!Options.PanelStates.TryGetValue(name, out var open))
 		{
 			open = true;
 			Options.PanelStates[name] = open;
@@ -425,7 +428,7 @@ internal sealed class ProjectDirector
 			flags |= ImGuiTreeNodeFlags.DefaultOpen;
 		}
 
-		bool wasOpen = open;
+		var wasOpen = open;
 		if (ImGui.CollapsingHeader(name, flags))
 		{
 			contentDelegate?.Invoke();
@@ -517,7 +520,7 @@ internal sealed class ProjectDirector
 	{
 		foreach (var (owner, pat) in Options.GitHubOwners)
 		{
-			ShowCollapsiblePanel(owner, () => { ShowRepos(owner); });
+			ShowCollapsiblePanel(owner, () => ShowRepos(owner));
 		}
 	}
 
@@ -529,10 +532,10 @@ internal sealed class ProjectDirector
 			{
 				if (gitHubRepo.OwnerName == owner)
 				{
-					bool isCloned = Options.ClonedRepos.ContainsKey(repo.LocalPath);
+					var isCloned = Options.ClonedRepos.ContainsKey(repo.LocalPath);
 					ImGuiWidgets.ColorIndicator(Color.Green, isCloned);
 					ImGui.SameLine();
-					bool isSelected = Options.BaseRepo == repoName;
+					var isSelected = Options.BaseRepo == repoName;
 					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
 					{
 						SwitchPage(repoName);
@@ -601,7 +604,7 @@ internal sealed class ProjectDirector
 
 	private void UpdateClonedStatus()
 	{
-		bool changed = false;
+		var changed = false;
 		foreach (var (_, repo) in Options.Repos)
 		{
 			changed |= UpdateClonedStatus(repo);
@@ -617,8 +620,8 @@ internal sealed class ProjectDirector
 	private bool UpdateClonedStatus(GitRepository repo)
 	{
 		var repoPath = repo.LocalPath;
-		bool wasCloned = Options.ClonedRepos.ContainsKey(repoPath);
-		bool isCloned = true;
+		var wasCloned = Options.ClonedRepos.ContainsKey(repoPath);
+		var isCloned = true;
 		try
 		{
 			using var _ = new LibGit2Sharp.Repository(repoPath);
@@ -655,7 +658,7 @@ internal sealed class ProjectDirector
 	{
 		// scan the dev directory for git repos and when we find one we add the owner to the list of owners and the repo to the list of repos
 		var gitDirs = Directory.EnumerateDirectories(Options.DevDirectory, ".git", SearchOption.AllDirectories);
-		foreach (string gitDir in gitDirs)
+		foreach (var gitDir in gitDirs)
 		{
 			using var localRepo = new LibGit2Sharp.Repository(gitDir);
 			var localPath = MakeFullyQualifyLocalRepoPath((AbsoluteDirectoryPath)localRepo.Info.WorkingDirectory);
@@ -666,7 +669,7 @@ internal sealed class ProjectDirector
 				var repo = GitRepository.Create(remoteUrl, localPath);
 				if (repo is GitHubRepository gitHubRepo)
 				{
-					string[] remoteUrlParts = remoteUrl.Split('/').Reverse().ToArray();
+					var remoteUrlParts = remoteUrl.Split('/').Reverse().ToArray();
 					if (remoteUrlParts.Length >= 2)
 					{
 						var repoName = (GitHubRepoName)remoteUrlParts[0].RemoveSuffix(".git");
@@ -763,7 +766,7 @@ internal sealed class ProjectDirector
 							return string.Empty;
 						}
 					});
-					foreach (string match in matches)
+					foreach (var match in matches)
 					{
 						diffs[(RelativeFilePath)match] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
 					}
@@ -794,8 +797,8 @@ internal sealed class ProjectDirector
 				{
 					using var otherGitRepo = new LibGit2Sharp.Repository(repoB.LocalPath);
 
-					string fileContents = File.ReadAllText(Path.Combine(repoA.LocalPath, filePath));
-					string otherFileContents = File.ReadAllText(Path.Combine(repoB.LocalPath, filePath));
+					var fileContents = File.ReadAllText(Path.Combine(repoA.LocalPath, filePath));
+					var otherFileContents = File.ReadAllText(Path.Combine(repoB.LocalPath, filePath));
 					return Differ.Instance.CreateLineDiffs(fileContents, otherFileContents, ignoreWhitespace: false, ignoreCase: false);
 				}
 				catch (LibGit2Sharp.RepositoryNotFoundException)
@@ -842,10 +845,10 @@ internal sealed class ProjectDirector
 
 			foreach (var otherRepoName in sortedRepos)
 			{
-				int numExactDuplicates = repo.SimilarRepoDiffs[otherRepoName]
+				var numExactDuplicates = repo.SimilarRepoDiffs[otherRepoName]
 					.Count(kvp => kvp.Value.DiffBlocks.Count == 0);
 
-				int numMatches = repo.SimilarRepoDiffs[otherRepoName].Count;
+				var numMatches = repo.SimilarRepoDiffs[otherRepoName].Count;
 
 				ImGui.TableNextRow();
 				if (ImGui.TableNextColumn())
@@ -856,16 +859,19 @@ internal sealed class ProjectDirector
 						SwitchPage(Options.BaseRepo, otherRepoName);
 					}
 				}
+
 				if (ImGui.TableNextColumn())
 				{
 					ImGui.TextUnformatted($"{numMatches}");
 				}
+
 				if (ImGui.TableNextColumn())
 				{
 					ImGui.TextUnformatted($"{numExactDuplicates}");
 				}
 			}
 		}
+
 		ImGui.EndTable();
 	}
 
@@ -908,16 +914,19 @@ internal sealed class ProjectDirector
 							SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
 						}
 					}
+
 					if (ImGui.TableNextColumn())
 					{
 						ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.DeleteCountA)}");
 					}
+
 					if (ImGui.TableNextColumn())
 					{
 						ImGui.TextUnformatted($"{diff.DiffBlocks.Sum(x => x.InsertCountB)}");
 					}
 				}
 			}
+
 			ImGui.EndTable();
 
 			ImGui.NewLine();
@@ -949,6 +958,7 @@ internal sealed class ProjectDirector
 			ImGui.PopStyleVar();
 			DividerDiff.Tick(dt);
 		}
+
 		ImGui.EndChild();
 	}
 
@@ -969,7 +979,7 @@ internal sealed class ProjectDirector
 			return;
 		}
 
-		int i = 0;
+		var i = 0;
 		foreach (var block in diff.DiffBlocks)
 		{
 			if (ImGui.ArrowButton($"DiffTakeLeft{i}", ImGuiDir.Right))
@@ -978,10 +988,11 @@ internal sealed class ProjectDirector
 				AddPrologueForDeletedLines(diff, block, newLines);
 				AddDeletedLines(diff, block, newLines);
 				AddEpilogueForDeletedLines(diff, block, newLines);
-				string newText = string.Join(Environment.NewLine, newLines);
+				var newText = string.Join(Environment.NewLine, newLines);
 				File.WriteAllText(Path.Combine(repoB.LocalPath, Options.CompareFile), newText);
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
+
 			ImGui.SameLine();
 			ShowDiffBlockSummary(block);
 			if (ImGui.BeginTable($"DiffBlockLeft{i}", 3, ImGuiTableFlags.SizingFixedFit))
@@ -990,6 +1001,7 @@ internal sealed class ProjectDirector
 				ShowDeletedLines(diff, block);
 				ShowEpilogueForDeletedLines(diff, block);
 			}
+
 			ImGui.EndTable();
 			ImGui.NewLine();
 
@@ -1011,46 +1023,46 @@ internal sealed class ProjectDirector
 
 		static void AddPrologueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			int endIndex = block.InsertStartB;
+			var endIndex = block.InsertStartB;
 			newLines.AddRange(diff.PiecesNew[..endIndex]);
 		}
 
 		static void AddEpilogueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			int startIndex = block.InsertStartB + block.InsertCountB;
+			var startIndex = block.InsertStartB + block.InsertCountB;
 			newLines.AddRange(diff.PiecesNew[startIndex..]);
 		}
 
 		static void AddDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			int startIndex = block.DeleteStartA;
-			int endIndex = startIndex + block.DeleteCountA;
+			var startIndex = block.DeleteStartA;
+			var endIndex = startIndex + block.DeleteCountA;
 			newLines.AddRange(diff.PiecesOld[startIndex..endIndex]);
 		}
 
 		static void ShowPrologueForDeletedLines(DiffResult diff, DiffBlock block)
 		{
-			int startIndex = Math.Max(block.DeleteStartA - 3, 0);
-			int endIndex = block.DeleteStartA;
+			var startIndex = Math.Max(block.DeleteStartA - 3, 0);
+			var endIndex = block.DeleteStartA;
 			var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
 			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
 		}
 
 		static void ShowDeletedLines(DiffResult diff, DiffBlock block)
 		{
-			int startIndex = block.DeleteStartA;
-			int endIndex = startIndex + block.DeleteCountA;
+			var startIndex = block.DeleteStartA;
+			var endIndex = startIndex + block.DeleteCountA;
 			var formattedLines = FormatDeletedLines(diff.PiecesOld[startIndex..endIndex]);
 			ShowDiffLines(formattedLines, startIndex, "-", DiffDeletionLineColor);
 
-			int extraLines = Math.Max(0, block.InsertCountB - block.DeleteCountA);
+			var extraLines = Math.Max(0, block.InsertCountB - block.DeleteCountA);
 			ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffAdditionFillerLineColor);
 		}
 
 		static void ShowEpilogueForDeletedLines(DiffResult diff, DiffBlock block)
 		{
-			int startIndex = block.DeleteStartA + block.DeleteCountA;
-			int endIndex = Math.Min(startIndex + 3, diff.PiecesOld.Length);
+			var startIndex = block.DeleteStartA + block.DeleteCountA;
+			var endIndex = Math.Min(startIndex + 3, diff.PiecesOld.Length);
 			var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
 			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
 		}
@@ -1063,7 +1075,7 @@ internal sealed class ProjectDirector
 			return;
 		}
 
-		int i = 0;
+		var i = 0;
 		foreach (var block in diff.DiffBlocks)
 		{
 			if (ImGui.ArrowButton($"DiffTakeRight{i}", ImGuiDir.Left))
@@ -1072,10 +1084,11 @@ internal sealed class ProjectDirector
 				AddPrologueForNewLines(diff, block, newLines);
 				AddNewLines(diff, block, newLines);
 				AddEpilogueForNewLines(diff, block, newLines);
-				string newText = string.Join(Environment.NewLine, newLines);
+				var newText = string.Join(Environment.NewLine, newLines);
 				File.WriteAllText(Path.Combine(repoA.LocalPath, Options.CompareFile), newText);
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
+
 			ImGui.SameLine();
 			ShowDiffBlockSummary(block);
 			if (ImGui.BeginTable($"DiffBlockRight{i}", 3, ImGuiTableFlags.SizingFixedFit))
@@ -1084,6 +1097,7 @@ internal sealed class ProjectDirector
 				ShowNewLines(diff, block);
 				ShowEpilogueForNewLines(diff, block);
 			}
+
 			ImGui.EndTable();
 			ImGui.NewLine();
 			++i;
@@ -1104,46 +1118,46 @@ internal sealed class ProjectDirector
 
 		static void AddPrologueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			int endIndex = block.DeleteStartA;
+			var endIndex = block.DeleteStartA;
 			newLines.AddRange(diff.PiecesOld[..endIndex]);
 		}
 
 		static void AddNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			int startIndex = block.InsertStartB;
-			int endIndex = startIndex + block.InsertCountB;
+			var startIndex = block.InsertStartB;
+			var endIndex = startIndex + block.InsertCountB;
 			newLines.AddRange(diff.PiecesNew[startIndex..endIndex]);
 		}
 
 		static void AddEpilogueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			int startIndex = block.DeleteStartA + block.DeleteCountA;
+			var startIndex = block.DeleteStartA + block.DeleteCountA;
 			newLines.AddRange(diff.PiecesOld[startIndex..]);
 		}
 
 		static void ShowPrologueForNewLines(DiffResult diff, DiffBlock block)
 		{
-			int startIndex = Math.Max(block.InsertStartB - 3, 0);
-			int endIndex = block.InsertStartB;
+			var startIndex = Math.Max(block.InsertStartB - 3, 0);
+			var endIndex = block.InsertStartB;
 			var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
 			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
 		}
 
 		static void ShowNewLines(DiffResult diff, DiffBlock block)
 		{
-			int startIndex = block.InsertStartB;
-			int endIndex = startIndex + block.InsertCountB;
+			var startIndex = block.InsertStartB;
+			var endIndex = startIndex + block.InsertCountB;
 			var formattedLines = FormatAddedLines(diff.PiecesNew[startIndex..endIndex]);
 			ShowDiffLines(formattedLines, startIndex, "+", DiffAdditionLineColor);
 
-			int extraLines = Math.Max(0, block.DeleteCountA - block.InsertCountB);
+			var extraLines = Math.Max(0, block.DeleteCountA - block.InsertCountB);
 			ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffDeletionFillerLineColor);
 		}
 
 		static void ShowEpilogueForNewLines(DiffResult diff, DiffBlock block)
 		{
-			int startIndex = block.InsertStartB + block.InsertCountB;
-			int endIndex = Math.Min(startIndex + 3, diff.PiecesNew.Length);
+			var startIndex = block.InsertStartB + block.InsertCountB;
+			var endIndex = Math.Min(startIndex + 3, diff.PiecesNew.Length);
 			var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
 			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
 		}
@@ -1151,7 +1165,7 @@ internal sealed class ProjectDirector
 
 	private static void ShowDiffLines(IEnumerable<string> lines, int lineIndex, string prefix, Vector4 color)
 	{
-		foreach (string line in lines)
+		foreach (var line in lines)
 		{
 			if (ImGui.TableNextColumn())
 			{
@@ -1161,10 +1175,12 @@ internal sealed class ProjectDirector
 					ImGui.TextUnformatted($"{lineIndex++}");
 				}
 			}
+
 			if (ImGui.TableNextColumn())
 			{
 				ImGui.TextUnformatted(prefix);
 			}
+
 			if (ImGui.TableNextColumn())
 			{
 				ImGui.TextUnformatted(line);
@@ -1178,12 +1194,12 @@ internal sealed class ProjectDirector
 
 	private static void ShowDiffSummaryText(int linesDeleted, int linesAdded)
 	{
-		int totalModifications = linesDeleted + linesAdded;
+		var totalModifications = linesDeleted + linesAdded;
 		if (totalModifications > 0)
 		{
-			int displayedModifications = Math.Clamp(totalModifications, 1, 10);
-			int displayedDeletions = (int)Math.Round((double)linesDeleted / totalModifications * displayedModifications, 0);
-			int displayedAdditions = displayedModifications - displayedDeletions;
+			var displayedModifications = Math.Clamp(totalModifications, 1, 10);
+			var displayedDeletions = (int)Math.Round((double)linesDeleted / totalModifications * displayedModifications, 0);
+			var displayedAdditions = displayedModifications - displayedDeletions;
 
 			ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, 0, 0, 1));
 			ImGui.TextUnformatted($"{new string('-', displayedDeletions)}");
@@ -1227,7 +1243,7 @@ internal sealed class ProjectDirector
 					_ = ImGui.Selectable($"..");
 					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 					{
-						string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
+						var newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
 						if (string.IsNullOrEmpty(newPath))
 						{
 							SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, new());
@@ -1242,8 +1258,8 @@ internal sealed class ProjectDirector
 
 			foreach (var path in directories)
 			{
-				bool existsInA = BrowserContentsBase.Contains(path);
-				bool existsInB = BrowserContentsCompare.Contains(path);
+				var existsInA = BrowserContentsBase.Contains(path);
+				var existsInB = BrowserContentsCompare.Contains(path);
 
 				ImGui.TableNextRow();
 				if (ImGui.TableNextColumn())
@@ -1264,6 +1280,7 @@ internal sealed class ProjectDirector
 						}
 					}
 				}
+
 				if (ImGui.TableNextColumn() && existsInA != existsInB)
 				{
 					if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
@@ -1281,9 +1298,11 @@ internal sealed class ProjectDirector
 						{
 							ImGui.TextUnformatted(existsInA ? "Give" : "Take");
 						}
+
 						ImGui.EndTooltip();
 					}
 				}
+
 				if (ImGui.TableNextColumn() && existsInA != existsInB)
 				{
 					if (existsInA && ImGui.Button("X##Remove"))
@@ -1301,6 +1320,7 @@ internal sealed class ProjectDirector
 						{
 							ImGui.TextUnformatted("Delete");
 						}
+
 						ImGui.EndTooltip();
 					}
 				}
@@ -1308,8 +1328,8 @@ internal sealed class ProjectDirector
 
 			foreach (var path in files)
 			{
-				bool existsInA = BrowserContentsBase.Contains(path);
-				bool existsInB = BrowserContentsCompare.Contains(path);
+				var existsInA = BrowserContentsBase.Contains(path);
+				var existsInB = BrowserContentsCompare.Contains(path);
 
 				ImGui.TableNextRow();
 				if (ImGui.TableNextColumn())
@@ -1321,14 +1341,14 @@ internal sealed class ProjectDirector
 				{
 					if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
 					{
-						string srcPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
-						string dstPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
+						var srcPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
+						var dstPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
 						File.Copy(srcPath, dstPath);
 					}
 					else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
 					{
-						string srcPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
-						string dstPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
+						var srcPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
+						var dstPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
 						File.Copy(srcPath, dstPath);
 					}
 
@@ -1338,6 +1358,7 @@ internal sealed class ProjectDirector
 						{
 							ImGui.TextUnformatted(existsInA ? "Give" : "Take");
 						}
+
 						ImGui.EndTooltip();
 					}
 				}
@@ -1359,11 +1380,13 @@ internal sealed class ProjectDirector
 						{
 							ImGui.TextUnformatted("Delete");
 						}
+
 						ImGui.EndTooltip();
 					}
 				}
 			}
 		}
+
 		ImGui.EndTable();
 	}
 
@@ -1374,7 +1397,7 @@ internal sealed class ProjectDirector
 		var directories = allFilesystemEntries.Where(x => Directory.Exists(Path.Combine(baseRepo.LocalPath, Options.BrowsePath, x))).ToCollection();
 		var files = allFilesystemEntries.Except(directories).ToCollection();
 
-		bool shouldOpenPopup = false;
+		var shouldOpenPopup = false;
 
 		if (ImGui.BeginTable("RepoBrowser", 3, ImGuiTableFlags.Borders))
 		{
@@ -1391,7 +1414,7 @@ internal sealed class ProjectDirector
 					_ = ImGui.Selectable($"..");
 					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 					{
-						string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
+						var newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
 						if (string.IsNullOrEmpty(newPath))
 						{
 							SwitchRepoBrowserPath(Options.BaseRepo, new());
@@ -1464,6 +1487,7 @@ internal sealed class ProjectDirector
 							shouldOpenPopup |= true;
 							Options.PropagatePath = path;
 						}
+
 						if (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
 						{
 							if (ImGui.Selectable($"Generate Tests"))
@@ -1481,9 +1505,9 @@ internal sealed class ProjectDirector
 								var repo = Options.Repos[Options.BaseRepo];
 								var csFiles = Directory.EnumerateFiles(repo.LocalPath, "*.cs", SearchOption.AllDirectories);
 								var allFileContents = new StringBuilder();
-								foreach (string file in csFiles)
+								foreach (var file in csFiles)
 								{
-									string relativePath = file.RemovePrefix(repo.LocalPath);
+									var relativePath = file.RemovePrefix(repo.LocalPath);
 									allFileContents.AppendLine($"Begin: {relativePath}\n\n" + File.ReadAllText(file) + $"\nEnd: {relativePath}\n\n");
 								}
 
@@ -1494,12 +1518,13 @@ internal sealed class ProjectDirector
 							if (ImGui.Selectable($"Summarize"))
 							{
 								var repo = Options.Repos[Options.BaseRepo];
-								string filePath = Path.Combine(repo.LocalPath, path);
-								string fileContents = File.ReadAllText(filePath);
+								var filePath = Path.Combine(repo.LocalPath, path);
+								var fileContents = File.ReadAllText(filePath);
 								var response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
 								QueueLog($"[ASSISTANT]: {response.Value}");
 							}
 						}
+
 						ImGui.EndPopup();
 					}
 				}
@@ -1526,6 +1551,7 @@ internal sealed class ProjectDirector
 				}
 			}
 		}
+
 		ImGui.EndTable();
 
 		if (shouldOpenPopup)

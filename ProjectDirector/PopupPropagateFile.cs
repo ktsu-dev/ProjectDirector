@@ -1,3 +1,7 @@
+// Copyright (c) ktsu.dev
+// All rights reserved.
+// Licensed under the MIT license.
+
 namespace ktsu.ProjectDirector;
 
 using DiffPlex.Model;
@@ -42,14 +46,15 @@ internal class PopupPropagateFile
 		ImGui.TextUnformatted("Repos to propagate to:");
 		foreach (var (name, similar) in sortedRepos)
 		{
-			bool shouldPropagate = Propagation.GetOrCreate(name, similar);
+			var shouldPropagate = Propagation.GetOrCreate(name, similar);
 			_ = ImGui.Checkbox($"{name}{(similar ? "*" : string.Empty)}", ref shouldPropagate);
 			Propagation[name] = shouldPropagate;
 		}
+
 		ImGui.Separator();
 		if (ImGui.Button("Propagate"))
 		{
-			int propagationCount = Propagation.Count(kvp => kvp.Value);
+			var propagationCount = Propagation.Count(kvp => kvp.Value);
 			Prompt.Open("Propagation", $"Are you sure you want to propagate {Options.PropagatePath} to {propagationCount} repos?", new()
 			{
 				{ "Yes", Propagate },
@@ -68,14 +73,14 @@ internal class PopupPropagateFile
 	private void Propagate()
 	{
 		var repo = Options.Repos[Options.BaseRepo];
-		string from = Path.Combine(repo.LocalPath, Options.PropagatePath);
+		var from = Path.Combine(repo.LocalPath, Options.PropagatePath);
 		foreach (var (name, shouldPropagate) in Propagation)
 		{
 			if (shouldPropagate)
 			{
 				var otherRepo = Options.Repos[name];
-				string to = Path.Combine(otherRepo.LocalPath, Options.PropagatePath);
-				string? directory = Path.GetDirectoryName(to);
+				var to = Path.Combine(otherRepo.LocalPath, Options.PropagatePath);
+				var directory = Path.GetDirectoryName(to);
 				if (!string.IsNullOrEmpty(directory))
 				{
 					_ = Directory.CreateDirectory(directory);
