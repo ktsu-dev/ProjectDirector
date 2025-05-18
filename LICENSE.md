@@ -1,6 +1,6 @@
 MIT License
 
-https://github.com/ktsu-dev/ktsu-dev/ProjectDirector
+https://github.com/ktsu-dev/ProjectDirector
 
 Copyright (c) 2023-2025 ktsu-dev
 
