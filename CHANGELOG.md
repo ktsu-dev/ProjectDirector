@@ -8,6 +8,7 @@ Changes since v1.0.0-alpha.1:
 - Update namespace to ktsu ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update package references to latest versions and add ILCompiler and ILLink.Tasks ([@matt-edmondson](https://github.com/matt-edmondson))
 - Delete global.json ([@matt-edmondson](https://github.com/matt-edmondson))
+- Update package references in ProjectDirector.csproj ([@matt-edmondson](https://github.com/matt-edmondson))
 - Add LICENSE template ([@matt-edmondson](https://github.com/matt-edmondson))
 - Remove obsolete build configuration files and add copyright notices to source files ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update packages ([@matt-edmondson](https://github.com/matt-edmondson))
