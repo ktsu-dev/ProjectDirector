@@ -4,6 +4,7 @@ Changes since v1.0.0-alpha.1:
 
 - Fix sorting on propagate file dialog ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update packages ([@matt-edmondson](https://github.com/matt-edmondson))
+- Update .editorconfig, .gitignore, and .runsettings; modify PSBuild.psm1 for improved build and test processes ([@matt-edmondson](https://github.com/matt-edmondson))
 - Add documentation comments ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update namespace to ktsu ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update package references to latest versions and add ILCompiler and ILLink.Tasks ([@matt-edmondson](https://github.com/matt-edmondson))
