@@ -11,6 +11,6 @@
     <PackageReference Include="ktsu.ImGuiWidgets" Version="1.6.8" />
     <PackageReference Include="LibGit2Sharp" Version="0.31.0" />
     <PackageReference Include="Octokit" Version="14.0.0" />
-    <PackageReference Include="OpenAI" Version="2.5.0" />
+    <PackageReference Include="OpenAI" Version="2.6.0" />
   </ItemGroup>
 </Project>
