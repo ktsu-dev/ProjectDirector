@@ -4,13 +4,15 @@
 
 namespace ktsu.ProjectDirector;
 
-using ktsu.StrongStrings;
+using Semantics.Strings;
 
-public sealed record class GitHubOwnerName : StrongStringAbstract<GitHubOwnerName> { }
-public sealed record class GitHubRepoName : StrongStringAbstract<GitHubRepoName> { }
-public sealed record class FullyQualifiedGitHubRepoName : StrongStringAbstract<FullyQualifiedGitHubRepoName> { }
-public sealed record class GitHubLogin : StrongStringAbstract<GitHubLogin> { }
-public sealed record class GitHubToken : StrongStringAbstract<GitHubToken> { }
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+
+public sealed record class GitHubOwnerName : SemanticString<GitHubOwnerName> { }
+public sealed record class GitHubRepoName : SemanticString<GitHubRepoName> { }
+public sealed record class FullyQualifiedGitHubRepoName : SemanticString<FullyQualifiedGitHubRepoName> { }
+public sealed record class GitHubLogin : SemanticString<GitHubLogin> { }
+public sealed record class GitHubToken : SemanticString<GitHubToken> { }
 
 public sealed class GitHubRepository : GitRepository
 {

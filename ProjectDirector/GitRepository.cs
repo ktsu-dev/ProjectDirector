@@ -6,8 +6,10 @@ namespace ktsu.ProjectDirector;
 
 using System.Text.Json.Serialization;
 using DiffPlex.Model;
-using ktsu.StrongPaths;
+using Semantics.Paths;
 using LibGit2Sharp;
+
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
 [JsonDerivedType(typeof(GitHubRepository), nameof(GitHubRepository))]
 [JsonDerivedType(typeof(AzureDevOpsRepository), nameof(AzureDevOpsRepository))]
@@ -44,8 +46,8 @@ public abstract class GitRepository
 		IsDirty = false;
 		IsOutOfDate = false;
 
-		using var repo = new Repository(LocalPath);
-		var status = repo.RetrieveStatus();
+		using Repository repo = new(LocalPath);
+		RepositoryStatus status = repo.RetrieveStatus();
 		IsDirty = status.IsDirty;
 		// work out if the repository is behind the remote
 	}

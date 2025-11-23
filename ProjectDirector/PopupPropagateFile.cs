@@ -8,9 +8,9 @@ using DiffPlex.Model;
 using ImGuiNET;
 using ktsu.Extensions;
 using ktsu.ImGuiPopups;
-using ktsu.StrongPaths;
+using Semantics.Paths;
 
-internal class PopupPropagateFile
+internal sealed class PopupPropagateFile
 {
 	private ImGuiPopups.Modal Modal { get; } = new();
 	private ProjectDirectorOptions Options { get; set; } = new();
@@ -26,14 +26,14 @@ internal class PopupPropagateFile
 		Modal.Open("Propagate File", ShowContent);
 	}
 
-	protected void ShowContent()
+	private void ShowContent()
 	{
 		string normalizePath(string path) => path.Replace(Path.AltDirectorySeparatorChar, Path.DirectorySeparatorChar);
 		bool hasSimilarFile(KeyValuePair<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> kvp) => kvp.Value.Any(x => normalizePath(x.Key) == normalizePath(Options.PropagatePath));
 
-		var repo = Options.Repos[Options.BaseRepo];
+		GitRepository repo = Options.Repos[Options.BaseRepo];
 
-		var sortedRepos = repo.SimilarRepoDiffs
+		IOrderedEnumerable<KeyValuePair<FullyQualifiedGitHubRepoName, bool>> sortedRepos = repo.SimilarRepoDiffs
 			.ToDictionary(kvp => kvp.Key, hasSimilarFile)
 			.OrderByDescending(kvp => kvp.Value)
 			.ThenBy(kvp => kvp.Key);
@@ -44,9 +44,9 @@ internal class PopupPropagateFile
 		ImGui.TextUnformatted($"Path: {Options.PropagatePath}");
 		ImGui.Separator();
 		ImGui.TextUnformatted("Repos to propagate to:");
-		foreach (var (name, similar) in sortedRepos)
+		foreach ((FullyQualifiedGitHubRepoName name, bool similar) in sortedRepos)
 		{
-			var shouldPropagate = Propagation.GetOrCreate(name, similar);
+			bool shouldPropagate = Propagation.GetOrCreate(name, similar);
 			_ = ImGui.Checkbox($"{name}{(similar ? "*" : string.Empty)}", ref shouldPropagate);
 			Propagation[name] = shouldPropagate;
 		}
@@ -54,7 +54,7 @@ internal class PopupPropagateFile
 		ImGui.Separator();
 		if (ImGui.Button("Propagate"))
 		{
-			var propagationCount = Propagation.Count(kvp => kvp.Value);
+			int propagationCount = Propagation.Count(kvp => kvp.Value);
 			Prompt.Open("Propagation", $"Are you sure you want to propagate {Options.PropagatePath} to {propagationCount} repos?", new()
 			{
 				{ "Yes", Propagate },
@@ -72,15 +72,15 @@ internal class PopupPropagateFile
 
 	private void Propagate()
 	{
-		var repo = Options.Repos[Options.BaseRepo];
-		var from = Path.Combine(repo.LocalPath, Options.PropagatePath);
-		foreach (var (name, shouldPropagate) in Propagation)
+		GitRepository repo = Options.Repos[Options.BaseRepo];
+		string from = Path.Combine(repo.LocalPath, Options.PropagatePath);
+		foreach ((FullyQualifiedGitHubRepoName name, bool shouldPropagate) in Propagation)
 		{
 			if (shouldPropagate)
 			{
-				var otherRepo = Options.Repos[name];
-				var to = Path.Combine(otherRepo.LocalPath, Options.PropagatePath);
-				var directory = Path.GetDirectoryName(to);
+				GitRepository otherRepo = Options.Repos[name];
+				string to = Path.Combine(otherRepo.LocalPath, Options.PropagatePath);
+				string? directory = Path.GetDirectoryName(to);
 				if (!string.IsNullOrEmpty(directory))
 				{
 					_ = Directory.CreateDirectory(directory);

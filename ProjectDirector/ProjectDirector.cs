@@ -18,11 +18,12 @@ using ImGuiNET;
 using ktsu.Extensions;
 using ktsu.ImGuiApp;
 using ktsu.ImGuiPopups;
-using ktsu.ImGuiStyler;
 using ktsu.ImGuiWidgets;
-using ktsu.StrongPaths;
+using ktsu.Semantics.Strings;
 using Octokit;
 using OpenAI.Chat;
+
+#pragma warning disable CA1506
 
 internal sealed class ProjectDirector
 {
@@ -47,7 +48,13 @@ internal sealed class ProjectDirector
 	private static void Main(string[] _)
 	{
 		ProjectDirector projectDirector = new();
-		ImGuiApp.Start(nameof(ProjectDirector), projectDirector.Options.WindowState, null, projectDirector.Tick, projectDirector.ShowMenu, projectDirector.WindowResized);
+		ImGuiApp.Start(new()
+		{
+			Title = "Project Director",
+			OnAppMenu = projectDirector.ShowMenu,
+			OnMoveOrResize = projectDirector.WindowResized,
+			OnRender = projectDirector.Tick,
+		});
 	}
 
 	private const int LogLinesMax = 100;
@@ -66,16 +73,16 @@ internal sealed class ProjectDirector
 		DividerContainerRows.Add("Bottom", 0.20f, ShowBottomPanel);
 		DividerDiff.Add("Left", 0.50f, (dt) =>
 		{
-			var repoA = Options.Repos[Options.BaseRepo];
-			var repoB = Options.Repos[Options.CompareRepo];
-			var diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+			GitRepository repoA = Options.Repos[Options.BaseRepo];
+			GitRepository repoB = Options.Repos[Options.CompareRepo];
+			DiffResult diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
 			ShowDiffLeft(repoA, repoB, diff);
 		});
 		DividerDiff.Add("Right", 0.50f, (dt) =>
 		{
-			var repoA = Options.Repos[Options.BaseRepo];
-			var repoB = Options.Repos[Options.CompareRepo];
-			var diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+			GitRepository repoA = Options.Repos[Options.BaseRepo];
+			GitRepository repoB = Options.Repos[Options.CompareRepo];
+			DiffResult diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
 			ShowDiffRight(repoA, repoB, diff);
 		});
 
@@ -83,7 +90,7 @@ internal sealed class ProjectDirector
 
 		LibGit2Sharp.GlobalSettings.LogConfiguration = new(LibGit2Sharp.LogLevel.Debug, new((level, message) =>
 		{
-			var logMessage = $"[{level} {DateTimeOffset.Now}] {message}";
+			string logMessage = $"[{level} {DateTimeOffset.Now}] {message}";
 			QueueLog(logMessage);
 		}));
 
@@ -121,7 +128,7 @@ internal sealed class ProjectDirector
 	private void RestoreDividerStates()
 	{
 
-		if (Options.DividerStates.TryGetValue(DividerContainerCols.Id, out var sizes))
+		if (Options.DividerStates.TryGetValue(DividerContainerCols.Id, out List<float>? sizes))
 		{
 			DividerContainerCols.SetSizesFromList(sizes);
 		}
@@ -159,7 +166,7 @@ internal sealed class ProjectDirector
 
 	private void FetchRepo(FullyQualifiedGitHubRepoName repoName)
 	{
-		if (Options.Repos.TryGetValue(repoName, out var repo))
+		if (Options.Repos.TryGetValue(repoName, out GitRepository? repo))
 		{
 			FetchRepo(repo);
 		}
@@ -167,7 +174,7 @@ internal sealed class ProjectDirector
 
 	private void PullRepo(FullyQualifiedGitHubRepoName repoName)
 	{
-		if (Options.Repos.TryGetValue(repoName, out var repo))
+		if (Options.Repos.TryGetValue(repoName, out GitRepository? repo))
 		{
 			PullRepo(repo);
 		}
@@ -175,7 +182,7 @@ internal sealed class ProjectDirector
 
 	private void FetchRepoIfStale(FullyQualifiedGitHubRepoName repoName)
 	{
-		if (Options.Repos.TryGetValue(repoName, out var repo))
+		if (Options.Repos.TryGetValue(repoName, out GitRepository? repo))
 		{
 			FetchRepoIfStale(repo);
 		}
@@ -191,16 +198,16 @@ internal sealed class ProjectDirector
 
 	private void FetchRepo(GitRepository repo)
 	{
-		var repoPath = repo.LocalPath;
+		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
 		repo.LastFetchTime = DateTime.UtcNow;
 		QueueSaveOptions();
 
-		var task = new Task(() =>
+		Task task = new(() =>
 		{
-			var localRepo = new LibGit2Sharp.Repository(repoPath);
-			var fetchOptions = new LibGit2Sharp.FetchOptions();
-			var origin = localRepo.Network.Remotes["origin"];
-			var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
+			LibGit2Sharp.Repository localRepo = new(repoPath);
+			LibGit2Sharp.FetchOptions fetchOptions = new();
+			LibGit2Sharp.Remote origin = localRepo.Network.Remotes["origin"];
+			IEnumerable<string> refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
 			LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repo.RemotePath}");
 		});
 
@@ -209,13 +216,13 @@ internal sealed class ProjectDirector
 
 	private static void PullRepo(GitRepository repo)
 	{
-		var repoPath = repo.LocalPath;
-		var task = new Task(() =>
+		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
+		Task task = new(() =>
 		{
-			var localRepo = new LibGit2Sharp.Repository(repoPath);
-			var fetchOptions = new LibGit2Sharp.FetchOptions();
-			var origin = localRepo.Network.Remotes["origin"];
-			var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
+			LibGit2Sharp.Repository localRepo = new(repoPath);
+			LibGit2Sharp.FetchOptions fetchOptions = new();
+			LibGit2Sharp.Remote origin = localRepo.Network.Remotes["origin"];
+			IEnumerable<string> refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
 			try
 			{
 				_ = LibGit2Sharp.Commands.Pull(localRepo, new("ProjectDirector", "ProjectDirector@ktsu.dev", DateTimeOffset.Now), new()
@@ -237,7 +244,7 @@ internal sealed class ProjectDirector
 
 	private void SwitchPage(FullyQualifiedGitHubRepoName baseRepo)
 	{
-		if (Options.Repos.TryGetValue(baseRepo, out var repo))
+		if (Options.Repos.TryGetValue(baseRepo, out GitRepository? repo))
 		{
 			_ = UpdateClonedStatus(repo);
 			UpdateSimilarRepos(repo);
@@ -277,7 +284,7 @@ internal sealed class ProjectDirector
 
 	private void ShowTopPanel(float dt)
 	{
-		if (Options.Repos.TryGetValue(Options.BaseRepo, out var repo))
+		if (Options.Repos.TryGetValue(Options.BaseRepo, out GitRepository? repo))
 		{
 			ImGui.TextUnformatted($"Selected Repo: {Options.BaseRepo}");
 			ImGui.TextUnformatted($"Local Path: {repo.LocalPath}");
@@ -373,7 +380,7 @@ internal sealed class ProjectDirector
 
 	private void RefreshPage()
 	{
-		if (Options.Repos.TryGetValue(Options.BaseRepo, out var repo))
+		if (Options.Repos.TryGetValue(Options.BaseRepo, out GitRepository? repo))
 		{
 			_ = UpdateClonedStatus(repo);
 			UpdateSimilarRepos(repo);
@@ -384,7 +391,7 @@ internal sealed class ProjectDirector
 
 	private void ShowBottomPanel(float dt)
 	{
-		if (ImGui.BeginChild("Log", new Vector2(0, 0), ImGuiChildFlags.Border, ImGuiWindowFlags.HorizontalScrollbar))
+		if (ImGui.BeginChild("Log", new Vector2(0, 0), ImGuiChildFlags.Borders, ImGuiWindowFlags.HorizontalScrollbar))
 		{
 			LogQueue.ForEach(ImGui.TextUnformatted);
 			ImGui.SetScrollHereY(1);
@@ -415,20 +422,20 @@ internal sealed class ProjectDirector
 
 	private void ShowCollapsiblePanel(string name, Action contentDelegate)
 	{
-		if (!Options.PanelStates.TryGetValue(name, out var open))
+		if (!Options.PanelStates.TryGetValue(name, out bool open))
 		{
 			open = true;
 			Options.PanelStates[name] = open;
 			QueueSaveOptions();
 		}
 
-		var flags = ImGuiTreeNodeFlags.None;
+		ImGuiTreeNodeFlags flags = ImGuiTreeNodeFlags.None;
 		if (open)
 		{
 			flags |= ImGuiTreeNodeFlags.DefaultOpen;
 		}
 
-		var wasOpen = open;
+		bool wasOpen = open;
 		if (ImGui.CollapsingHeader(name, flags))
 		{
 			contentDelegate?.Invoke();
@@ -452,7 +459,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.MenuItem("Set Dev Directory"))
 			{
-				PopupSetDevDirectory.Open("Set Dev Directory?", "Set Dev Directory?", Options.DevDirectory, (string result) =>
+				PopupSetDevDirectory.Open("Set Dev Directory?", "Set Dev Directory?", Options.DevDirectory, result =>
 				{
 					if (!string.IsNullOrEmpty(result))
 					{
@@ -479,12 +486,12 @@ internal sealed class ProjectDirector
 
 			if (ImGui.MenuItem("Add New GitHub Owner"))
 			{
-				PopupAddNewGitHubOwner.Open("New Owner Name?", "New Owner Name?", "ktsu-io", (string result) =>
+				PopupAddNewGitHubOwner.Open("New Owner Name?", "New Owner Name?", "ktsu-io", result =>
 				{
 					if (!string.IsNullOrEmpty(result))
 					{
-						var newName = (GitHubOwnerName)result;
-						_ = Options.GitHubOwners.TryAdd(newName, (GitHubToken)string.Empty);
+						GitHubOwnerName newName = result.As<GitHubOwnerName>();
+						_ = Options.GitHubOwners.TryAdd(newName, string.Empty.As<GitHubToken>());
 						SyncGitHubOwnerInfo(newName);
 					}
 				});
@@ -518,7 +525,7 @@ internal sealed class ProjectDirector
 
 	private void ShowOwners()
 	{
-		foreach (var (owner, pat) in Options.GitHubOwners)
+		foreach ((GitHubOwnerName owner, GitHubToken pat) in Options.GitHubOwners)
 		{
 			ShowCollapsiblePanel(owner, () => ShowRepos(owner));
 		}
@@ -526,16 +533,16 @@ internal sealed class ProjectDirector
 
 	private void ShowRepos(GitHubOwnerName owner)
 	{
-		foreach (var (repoName, repo) in Options.Repos.OrderBy(r => r.Key))
+		foreach ((FullyQualifiedGitHubRepoName repoName, GitRepository repo) in Options.Repos.OrderBy(r => r.Key))
 		{
 			if (repo is GitHubRepository gitHubRepo)
 			{
 				if (gitHubRepo.OwnerName == owner)
 				{
-					var isCloned = Options.ClonedRepos.ContainsKey(repo.LocalPath);
-					ImGuiWidgets.ColorIndicator(Color.Green, isCloned);
+					bool isCloned = Options.ClonedRepos.ContainsKey(repo.LocalPath);
+					ImGuiWidgets.ColorIndicator(ImGuiStyler.Color.Palette.Basic.Green, isCloned);
 					ImGui.SameLine();
-					var isSelected = Options.BaseRepo == repoName;
+					bool isSelected = Options.BaseRepo == repoName;
 					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
 					{
 						SwitchPage(repoName);
@@ -551,7 +558,7 @@ internal sealed class ProjectDirector
 
 	private void SyncGitHubOwnerInfo(GitHubOwnerName owner)
 	{
-		var newOwner = GitHubClient.User.Get(owner).GetAwaiter().GetResult();
+		User newOwner = GitHubClient.User.Get(owner).GetAwaiter().GetResult();
 		Options.GitHubOwnerInfo[owner] = newOwner;
 		SyncGitHubRepoInfoForOwner(owner);
 		QueueSaveOptions();
@@ -560,7 +567,7 @@ internal sealed class ProjectDirector
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
 	private void SyncGitHubRepoInfoForOwner(GitHubOwnerName owner)
 	{
-		if (!Options.GitHubOwnerInfo.TryGetValue(owner, out var ownerInfo))
+		if (!Options.GitHubOwnerInfo.TryGetValue(owner, out User? ownerInfo))
 		{
 			return;
 		}
@@ -574,11 +581,11 @@ internal sealed class ProjectDirector
 				remoteRepos = remoteRepos.Concat(GitHubClient.Repository.GetAllForOrg(owner).Result);
 			}
 
-			foreach (var remoteRepo in remoteRepos)
+			foreach (Repository remoteRepo in remoteRepos)
 			{
-				var localPath = MakeFullyQualifyLocalRepoPath(Options.DevDirectory / (RelativeDirectoryPath)remoteRepo.FullName);
-				var repoName = GetFullyQualifiedRepoName(remoteRepo);
-				var repo = GitRepository.Create((GitRemotePath)remoteRepo.CloneUrl, localPath);
+				FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath(Options.DevDirectory / (RelativeDirectoryPath)remoteRepo.FullName);
+				FullyQualifiedGitHubRepoName repoName = GetFullyQualifiedRepoName(remoteRepo);
+				GitRepository? repo = GitRepository.Create(remoteRepo.CloneUrl.As<GitRemotePath>(), localPath);
 				if (repo is not null)
 				{
 					Options.Repos[repoName] = repo;
@@ -604,8 +611,8 @@ internal sealed class ProjectDirector
 
 	private void UpdateClonedStatus()
 	{
-		var changed = false;
-		foreach (var (_, repo) in Options.Repos)
+		bool changed = false;
+		foreach ((FullyQualifiedGitHubRepoName _, GitRepository repo) in Options.Repos)
 		{
 			changed |= UpdateClonedStatus(repo);
 		}
@@ -619,12 +626,12 @@ internal sealed class ProjectDirector
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0045:Convert to conditional expression", Justification = "<Pending>")]
 	private bool UpdateClonedStatus(GitRepository repo)
 	{
-		var repoPath = repo.LocalPath;
-		var wasCloned = Options.ClonedRepos.ContainsKey(repoPath);
-		var isCloned = true;
+		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
+		bool wasCloned = Options.ClonedRepos.ContainsKey(repoPath);
+		bool isCloned = true;
 		try
 		{
-			using var _ = new LibGit2Sharp.Repository(repoPath);
+			using LibGit2Sharp.Repository _ = new(repoPath);
 		}
 		catch (LibGit2Sharp.RepositoryNotFoundException)
 		{
@@ -657,24 +664,24 @@ internal sealed class ProjectDirector
 	private void ScanDevDirectoryForOwnersAndRepos()
 	{
 		// scan the dev directory for git repos and when we find one we add the owner to the list of owners and the repo to the list of repos
-		var gitDirs = Directory.EnumerateDirectories(Options.DevDirectory, ".git", SearchOption.AllDirectories);
-		foreach (var gitDir in gitDirs)
+		IEnumerable<string> gitDirs = Directory.EnumerateDirectories(Options.DevDirectory, ".git", SearchOption.AllDirectories);
+		foreach (string gitDir in gitDirs)
 		{
-			using var localRepo = new LibGit2Sharp.Repository(gitDir);
-			var localPath = MakeFullyQualifyLocalRepoPath((AbsoluteDirectoryPath)localRepo.Info.WorkingDirectory);
-			var remoteUrl = (GitRemotePath)localRepo.Network.Remotes["origin"].Url;
+			using LibGit2Sharp.Repository localRepo = new(gitDir);
+			FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath((AbsoluteDirectoryPath)localRepo.Info.WorkingDirectory);
+			GitRemotePath remoteUrl = (GitRemotePath)localRepo.Network.Remotes["origin"].Url;
 
 			try
 			{
-				var repo = GitRepository.Create(remoteUrl, localPath);
+				GitRepository? repo = GitRepository.Create(remoteUrl, localPath);
 				if (repo is GitHubRepository gitHubRepo)
 				{
-					var remoteUrlParts = remoteUrl.Split('/').Reverse().ToArray();
+					string[] remoteUrlParts = [.. remoteUrl.Split('/').Reverse()];
 					if (remoteUrlParts.Length >= 2)
 					{
-						var repoName = (GitHubRepoName)remoteUrlParts[0].RemoveSuffix(".git");
-						var ownerName = (GitHubOwnerName)remoteUrlParts[1];
-						var repoFullName = GetFullyQualifiedRepoName(ownerName, repoName);
+						GitHubRepoName repoName = (GitHubRepoName)remoteUrlParts[0].RemoveSuffix(".git");
+						GitHubOwnerName ownerName = (GitHubOwnerName)remoteUrlParts[1];
+						FullyQualifiedGitHubRepoName repoFullName = GetFullyQualifiedRepoName(ownerName, repoName);
 						Options.Repos[repoFullName] = gitHubRepo;
 						gitHubRepo.OwnerName = ownerName;
 						gitHubRepo.RepoName = repoName;
@@ -693,8 +700,8 @@ internal sealed class ProjectDirector
 
 	private void ScanRemoteAccountsForRepos()
 	{
-		var knownOwners = Options.GitHubOwners;
-		foreach (var (owner, pat) in knownOwners)
+		Dictionary<GitHubOwnerName, GitHubToken> knownOwners = Options.GitHubOwners;
+		foreach ((GitHubOwnerName owner, GitHubToken pat) in knownOwners)
 		{
 			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken)))
 			{
@@ -711,14 +718,14 @@ internal sealed class ProjectDirector
 
 	private void UpdateSimilarRepos(GitRepository repo)
 	{
-		foreach (var (_, otherRepo) in Options.Repos)
+		foreach ((FullyQualifiedGitHubRepoName _, GitRepository otherRepo) in Options.Repos)
 		{
 			if (repo != otherRepo)
 			{
-				var diffs = DiffRepos(repo, otherRepo);
+				Dictionary<RelativeFilePath, DiffResult> diffs = DiffRepos(repo, otherRepo);
 				if (otherRepo is GitHubRepository gitHubRepo)
 				{
-					var otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
+					FullyQualifiedGitHubRepoName otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
 					repo.SimilarRepoDiffs[otherRepoName] = diffs;
 				}
 				else
@@ -731,20 +738,20 @@ internal sealed class ProjectDirector
 
 	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, GitRepository repoB)
 	{
-		var diffs = new Dictionary<RelativeFilePath, DiffResult>();
+		Dictionary<RelativeFilePath, DiffResult> diffs = [];
 		try
 		{
-			using var gitRepo = new LibGit2Sharp.Repository(repoA.LocalPath);
-			var fileList = gitRepo.Index.Select(x => x.Path);
+			using LibGit2Sharp.Repository gitRepo = new(repoA.LocalPath);
+			IEnumerable<string> fileList = gitRepo.Index.Select(x => x.Path);
 
 			if (repoA != repoB)
 			{
 				try
 				{
-					using var otherGitRepo = new LibGit2Sharp.Repository(repoB.LocalPath);
-					var otherFileList = otherGitRepo.Index.Select(x => x.Path);
-					var matches = fileList.Intersect(otherFileList).ToCollection();
-					var fileContents = matches.ToDictionary(x => x, x =>
+					using LibGit2Sharp.Repository otherGitRepo = new(repoB.LocalPath);
+					IEnumerable<string> otherFileList = otherGitRepo.Index.Select(x => x.Path);
+					Collection<string> matches = fileList.Intersect(otherFileList).ToCollection();
+					Dictionary<string, string> fileContents = matches.ToDictionary(x => x, x =>
 					{
 						try
 						{
@@ -755,7 +762,7 @@ internal sealed class ProjectDirector
 							return string.Empty;
 						}
 					});
-					var otherFileContents = matches.ToDictionary(x => x, x =>
+					Dictionary<string, string> otherFileContents = matches.ToDictionary(x => x, x =>
 					{
 						try
 						{
@@ -765,8 +772,12 @@ internal sealed class ProjectDirector
 						{
 							return string.Empty;
 						}
+						catch (DirectoryNotFoundException)
+						{
+							return string.Empty;
+						}
 					});
-					foreach (var match in matches)
+					foreach (string? match in matches)
 					{
 						diffs[(RelativeFilePath)match] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
 					}
@@ -789,16 +800,16 @@ internal sealed class ProjectDirector
 	{
 		try
 		{
-			using var gitRepo = new LibGit2Sharp.Repository(repoA.LocalPath);
+			using LibGit2Sharp.Repository gitRepo = new(repoA.LocalPath);
 
 			if (repoA != repoB)
 			{
 				try
 				{
-					using var otherGitRepo = new LibGit2Sharp.Repository(repoB.LocalPath);
+					using LibGit2Sharp.Repository otherGitRepo = new(repoB.LocalPath);
 
-					var fileContents = File.ReadAllText(Path.Combine(repoA.LocalPath, filePath));
-					var otherFileContents = File.ReadAllText(Path.Combine(repoB.LocalPath, filePath));
+					string fileContents = File.ReadAllText(Path.Combine(repoA.LocalPath, filePath));
+					string otherFileContents = File.ReadAllText(Path.Combine(repoB.LocalPath, filePath));
 					return Differ.Instance.CreateLineDiffs(fileContents, otherFileContents, ignoreWhitespace: false, ignoreCase: false);
 				}
 				catch (LibGit2Sharp.RepositoryNotFoundException)
@@ -817,10 +828,10 @@ internal sealed class ProjectDirector
 
 	private static void RefreshFileDiff(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
 	{
-		var diff = DiffSingleFile(repoA, repoB, filePath);
+		DiffResult diff = DiffSingleFile(repoA, repoB, filePath);
 		if (repoB is GitHubRepository gitHubRepo)
 		{
-			var otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
+			FullyQualifiedGitHubRepoName otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
 			repoA.SimilarRepoDiffs[otherRepoName][filePath] = diff;
 		}
 		else
@@ -831,7 +842,7 @@ internal sealed class ProjectDirector
 
 	private void ShowSimilarRepos(GitRepository repo)
 	{
-		var sortedRepos = repo.SimilarRepoDiffs
+		IEnumerable<FullyQualifiedGitHubRepoName> sortedRepos = repo.SimilarRepoDiffs
 			.ToDictionary(kvp => kvp.Key, kvp => kvp.Value.Sum(x => x.Value.DiffBlocks.Sum(y => y.InsertCountB + y.DeleteCountA) > 0 ? 30 : 70))
 			.OrderByDescending(kvp => kvp.Value)
 			.Select(kvp => kvp.Key);
@@ -843,12 +854,12 @@ internal sealed class ProjectDirector
 			ImGui.TableSetupColumn("Exact", ImGuiTableColumnFlags.None, 3);
 			ImGui.TableHeadersRow();
 
-			foreach (var otherRepoName in sortedRepos)
+			foreach (FullyQualifiedGitHubRepoName? otherRepoName in sortedRepos)
 			{
-				var numExactDuplicates = repo.SimilarRepoDiffs[otherRepoName]
+				int numExactDuplicates = repo.SimilarRepoDiffs[otherRepoName]
 					.Count(kvp => kvp.Value.DiffBlocks.Count == 0);
 
-				var numMatches = repo.SimilarRepoDiffs[otherRepoName].Count;
+				int numMatches = repo.SimilarRepoDiffs[otherRepoName].Count;
 
 				ImGui.TableNextRow();
 				if (ImGui.TableNextColumn())
@@ -886,9 +897,9 @@ internal sealed class ProjectDirector
 		ImGui.SameLine();
 		ImGui.TextUnformatted($"Comparing {Options.BaseRepo} vs {Options.CompareRepo}");
 
-		if (repo.SimilarRepoDiffs.TryGetValue(Options.CompareRepo, out var diffs))
+		if (repo.SimilarRepoDiffs.TryGetValue(Options.CompareRepo, out Dictionary<RelativeFilePath, DiffResult>? diffs))
 		{
-			var sortedDiffs = diffs
+			IEnumerable<RelativeFilePath> sortedDiffs = diffs
 				.ToDictionary(kvp => kvp.Key, CountChangedLinesInDiffBlock)
 				.Where(kvp => kvp.Value > 0)
 				.OrderBy(kvp => kvp.Value)
@@ -901,9 +912,9 @@ internal sealed class ProjectDirector
 				ImGui.TableSetupColumn("Additions", ImGuiTableColumnFlags.None, 4);
 				ImGui.TableHeadersRow();
 
-				foreach (var filePath in sortedDiffs)
+				foreach (RelativeFilePath? filePath in sortedDiffs)
 				{
-					var diff = diffs[filePath];
+					DiffResult diff = diffs[filePath];
 
 					ImGui.TableNextRow();
 					if (ImGui.TableNextColumn())
@@ -949,7 +960,7 @@ internal sealed class ProjectDirector
 		ImGui.TextUnformatted($"Comparing {Options.BaseRepo} vs {Options.CompareRepo}");
 		ImGui.SameLine();
 
-		var diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+		DiffResult diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
 		ShowWholeDiffSummary(diff);
 
 		ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));
@@ -979,8 +990,8 @@ internal sealed class ProjectDirector
 			return;
 		}
 
-		var i = 0;
-		foreach (var block in diff.DiffBlocks)
+		int i = 0;
+		foreach (DiffBlock? block in diff.DiffBlocks)
 		{
 			if (ImGui.ArrowButton($"DiffTakeLeft{i}", ImGuiDir.Right))
 			{
@@ -988,7 +999,7 @@ internal sealed class ProjectDirector
 				AddPrologueForDeletedLines(diff, block, newLines);
 				AddDeletedLines(diff, block, newLines);
 				AddEpilogueForDeletedLines(diff, block, newLines);
-				var newText = string.Join(Environment.NewLine, newLines);
+				string newText = string.Join(Environment.NewLine, newLines);
 				File.WriteAllText(Path.Combine(repoB.LocalPath, Options.CompareFile), newText);
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
@@ -1004,7 +1015,6 @@ internal sealed class ProjectDirector
 
 			ImGui.EndTable();
 			ImGui.NewLine();
-
 			++i;
 		}
 
@@ -1021,49 +1031,49 @@ internal sealed class ProjectDirector
 
 		ScrollLeft = new(ImGui.GetScrollX(), ImGui.GetScrollY());
 
-		static void AddPrologueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		void AddPrologueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			var endIndex = block.InsertStartB;
-			newLines.AddRange(diff.PiecesNew[..endIndex]);
+			int endIndex = block.InsertStartB;
+			newLines.AddRange(diff.PiecesNew.Take(endIndex));
 		}
 
-		static void AddEpilogueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		void AddEpilogueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			var startIndex = block.InsertStartB + block.InsertCountB;
-			newLines.AddRange(diff.PiecesNew[startIndex..]);
+			int startIndex = block.InsertStartB + block.InsertCountB;
+			newLines.AddRange(diff.PiecesNew.Skip(startIndex));
 		}
 
-		static void AddDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		void AddDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			var startIndex = block.DeleteStartA;
-			var endIndex = startIndex + block.DeleteCountA;
-			newLines.AddRange(diff.PiecesOld[startIndex..endIndex]);
+			int startIndex = block.DeleteStartA;
+			int endIndex = startIndex + block.DeleteCountA;
+			newLines.AddRange(diff.PiecesOld.Skip(startIndex).Take(endIndex - startIndex));
 		}
 
-		static void ShowPrologueForDeletedLines(DiffResult diff, DiffBlock block)
+		void ShowPrologueForDeletedLines(DiffResult diff, DiffBlock block)
 		{
-			var startIndex = Math.Max(block.DeleteStartA - 3, 0);
-			var endIndex = block.DeleteStartA;
-			var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
+			int startIndex = Math.Max(block.DeleteStartA - 3, 0);
+			int endIndex = block.DeleteStartA;
+			IEnumerable<string> formattedLines = FormatUnchangedLines(diff.PiecesOld.Skip(startIndex).Take(endIndex - startIndex));
 			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
 		}
 
-		static void ShowDeletedLines(DiffResult diff, DiffBlock block)
+		void ShowDeletedLines(DiffResult diff, DiffBlock block)
 		{
-			var startIndex = block.DeleteStartA;
-			var endIndex = startIndex + block.DeleteCountA;
-			var formattedLines = FormatDeletedLines(diff.PiecesOld[startIndex..endIndex]);
+			int startIndex = block.DeleteStartA;
+			int endIndex = startIndex + block.DeleteCountA;
+			IEnumerable<string> formattedLines = FormatDeletedLines(diff.PiecesOld.Skip(startIndex).Take(endIndex - startIndex));
 			ShowDiffLines(formattedLines, startIndex, "-", DiffDeletionLineColor);
 
-			var extraLines = Math.Max(0, block.InsertCountB - block.DeleteCountA);
+			int extraLines = Math.Max(0, block.InsertCountB - block.DeleteCountA);
 			ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffAdditionFillerLineColor);
 		}
 
-		static void ShowEpilogueForDeletedLines(DiffResult diff, DiffBlock block)
+		void ShowEpilogueForDeletedLines(DiffResult diff, DiffBlock block)
 		{
-			var startIndex = block.DeleteStartA + block.DeleteCountA;
-			var endIndex = Math.Min(startIndex + 3, diff.PiecesOld.Length);
-			var formattedLines = FormatUnchangedLines(diff.PiecesOld[startIndex..endIndex]);
+			int startIndex = block.DeleteStartA + block.DeleteCountA;
+			int endIndex = Math.Min(startIndex + 3, diff.PiecesOld.Count);
+			IEnumerable<string> formattedLines = FormatUnchangedLines(diff.PiecesOld.Skip(startIndex).Take(endIndex - startIndex));
 			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
 		}
 	}
@@ -1075,8 +1085,8 @@ internal sealed class ProjectDirector
 			return;
 		}
 
-		var i = 0;
-		foreach (var block in diff.DiffBlocks)
+		int i = 0;
+		foreach (DiffBlock? block in diff.DiffBlocks)
 		{
 			if (ImGui.ArrowButton($"DiffTakeRight{i}", ImGuiDir.Left))
 			{
@@ -1084,7 +1094,7 @@ internal sealed class ProjectDirector
 				AddPrologueForNewLines(diff, block, newLines);
 				AddNewLines(diff, block, newLines);
 				AddEpilogueForNewLines(diff, block, newLines);
-				var newText = string.Join(Environment.NewLine, newLines);
+				string newText = string.Join(Environment.NewLine, newLines);
 				File.WriteAllText(Path.Combine(repoA.LocalPath, Options.CompareFile), newText);
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
@@ -1116,56 +1126,56 @@ internal sealed class ProjectDirector
 
 		ScrollRight = new(ImGui.GetScrollX(), ImGui.GetScrollY());
 
-		static void AddPrologueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		void AddPrologueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			var endIndex = block.DeleteStartA;
-			newLines.AddRange(diff.PiecesOld[..endIndex]);
+			int endIndex = block.DeleteStartA;
+			newLines.AddRange(diff.PiecesOld.Take(endIndex));
 		}
 
-		static void AddNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		void AddNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			var startIndex = block.InsertStartB;
-			var endIndex = startIndex + block.InsertCountB;
-			newLines.AddRange(diff.PiecesNew[startIndex..endIndex]);
+			int startIndex = block.InsertStartB;
+			int endIndex = startIndex + block.InsertCountB;
+			newLines.AddRange(diff.PiecesNew.Skip(startIndex).Take(endIndex - startIndex));
 		}
 
-		static void AddEpilogueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
+		void AddEpilogueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
 		{
-			var startIndex = block.DeleteStartA + block.DeleteCountA;
-			newLines.AddRange(diff.PiecesOld[startIndex..]);
+			int startIndex = block.DeleteStartA + block.DeleteCountA;
+			newLines.AddRange(diff.PiecesOld.Skip(startIndex));
 		}
 
-		static void ShowPrologueForNewLines(DiffResult diff, DiffBlock block)
+		void ShowPrologueForNewLines(DiffResult diff, DiffBlock block)
 		{
-			var startIndex = Math.Max(block.InsertStartB - 3, 0);
-			var endIndex = block.InsertStartB;
-			var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
+			int startIndex = Math.Max(block.InsertStartB - 3, 0);
+			int endIndex = block.InsertStartB;
+			IEnumerable<string> formattedLines = FormatUnchangedLines(diff.PiecesNew.Skip(startIndex).Take(endIndex - startIndex));
 			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
 		}
 
-		static void ShowNewLines(DiffResult diff, DiffBlock block)
+		void ShowNewLines(DiffResult diff, DiffBlock block)
 		{
-			var startIndex = block.InsertStartB;
-			var endIndex = startIndex + block.InsertCountB;
-			var formattedLines = FormatAddedLines(diff.PiecesNew[startIndex..endIndex]);
+			int startIndex = block.InsertStartB;
+			int endIndex = startIndex + block.InsertCountB;
+			IEnumerable<string> formattedLines = FormatAddedLines(diff.PiecesNew.Skip(startIndex).Take(endIndex - startIndex));
 			ShowDiffLines(formattedLines, startIndex, "+", DiffAdditionLineColor);
 
-			var extraLines = Math.Max(0, block.DeleteCountA - block.InsertCountB);
+			int extraLines = Math.Max(0, block.DeleteCountA - block.InsertCountB);
 			ShowDiffLines(Enumerable.Repeat(string.Empty, extraLines), -1, "-", DiffDeletionFillerLineColor);
 		}
 
-		static void ShowEpilogueForNewLines(DiffResult diff, DiffBlock block)
+		void ShowEpilogueForNewLines(DiffResult diff, DiffBlock block)
 		{
-			var startIndex = block.InsertStartB + block.InsertCountB;
-			var endIndex = Math.Min(startIndex + 3, diff.PiecesNew.Length);
-			var formattedLines = FormatUnchangedLines(diff.PiecesNew[startIndex..endIndex]);
+			int startIndex = block.InsertStartB + block.InsertCountB;
+			int endIndex = Math.Min(startIndex + 3, diff.PiecesNew.Count);
+			IEnumerable<string> formattedLines = FormatUnchangedLines(diff.PiecesNew.Skip(startIndex).Take(endIndex - startIndex));
 			ShowDiffLines(formattedLines, startIndex, string.Empty, UnchangedLineColor);
 		}
 	}
 
 	private static void ShowDiffLines(IEnumerable<string> lines, int lineIndex, string prefix, Vector4 color)
 	{
-		foreach (var line in lines)
+		foreach (string line in lines)
 		{
 			if (ImGui.TableNextColumn())
 			{
@@ -1194,12 +1204,12 @@ internal sealed class ProjectDirector
 
 	private static void ShowDiffSummaryText(int linesDeleted, int linesAdded)
 	{
-		var totalModifications = linesDeleted + linesAdded;
+		int totalModifications = linesDeleted + linesAdded;
 		if (totalModifications > 0)
 		{
-			var displayedModifications = Math.Clamp(totalModifications, 1, 10);
-			var displayedDeletions = (int)Math.Round((double)linesDeleted / totalModifications * displayedModifications, 0);
-			var displayedAdditions = displayedModifications - displayedDeletions;
+			int displayedModifications = Math.Clamp(totalModifications, 1, 10);
+			int displayedDeletions = (int)Math.Round((double)linesDeleted / totalModifications * displayedModifications, 0);
+			int displayedAdditions = displayedModifications - displayedDeletions;
 
 			ImGui.PushStyleColor(ImGuiCol.Text, new Vector4(1, 0, 0, 1));
 			ImGui.TextUnformatted($"{new string('-', displayedDeletions)}");
@@ -1222,11 +1232,13 @@ internal sealed class ProjectDirector
 	private static IEnumerable<string> FormatAddedLines(IEnumerable<string> lines) => FormatLines(lines);
 	private static IEnumerable<string> FormatUnchangedLines(IEnumerable<string> lines) => FormatLines(lines);
 
+#pragma warning disable CA1502
+
 	private void ShowCompareBrowser()
 	{
-		var allFilesystemEntries = BrowserContentsBase.Union(BrowserContentsCompare);
-		var directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
-		var files = allFilesystemEntries.Except(directories).ToCollection();
+		IEnumerable<RelativePath> allFilesystemEntries = BrowserContentsBase.Union(BrowserContentsCompare);
+		Collection<RelativePath> directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
+		Collection<RelativePath> files = allFilesystemEntries.Except(directories).ToCollection();
 
 		if (ImGui.BeginTable("CompareBrowser", 3, ImGuiTableFlags.Borders))
 		{
@@ -1243,7 +1255,7 @@ internal sealed class ProjectDirector
 					_ = ImGui.Selectable($"..");
 					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 					{
-						var newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
+						string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
 						if (string.IsNullOrEmpty(newPath))
 						{
 							SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, new());
@@ -1256,10 +1268,10 @@ internal sealed class ProjectDirector
 				}
 			}
 
-			foreach (var path in directories)
+			foreach (RelativePath? path in directories)
 			{
-				var existsInA = BrowserContentsBase.Contains(path);
-				var existsInB = BrowserContentsCompare.Contains(path);
+				bool existsInA = BrowserContentsBase.Contains(path);
+				bool existsInB = BrowserContentsCompare.Contains(path);
 
 				ImGui.TableNextRow();
 				if (ImGui.TableNextColumn())
@@ -1267,8 +1279,8 @@ internal sealed class ProjectDirector
 					_ = ImGui.Selectable(path, selected: false, ImGuiSelectableFlags.SpanAllColumns);
 					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 					{
-						var repoA = Options.Repos[Options.BaseRepo];
-						var repoB = Options.Repos[Options.CompareRepo];
+						GitRepository repoA = Options.Repos[Options.BaseRepo];
+						GitRepository repoB = Options.Repos[Options.CompareRepo];
 						if (repoA is GitHubRepository githubRepoA && repoB is GitHubRepository githubRepoB)
 						{
 							SwitchCompareBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), (RelativeDirectoryPath)Path.Combine(Options.BrowsePath, path));
@@ -1326,10 +1338,10 @@ internal sealed class ProjectDirector
 				}
 			}
 
-			foreach (var path in files)
+			foreach (RelativePath? path in files)
 			{
-				var existsInA = BrowserContentsBase.Contains(path);
-				var existsInB = BrowserContentsCompare.Contains(path);
+				bool existsInA = BrowserContentsBase.Contains(path);
+				bool existsInB = BrowserContentsCompare.Contains(path);
 
 				ImGui.TableNextRow();
 				if (ImGui.TableNextColumn())
@@ -1341,14 +1353,14 @@ internal sealed class ProjectDirector
 				{
 					if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
 					{
-						var srcPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
-						var dstPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
+						string srcPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
+						string dstPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
 						File.Copy(srcPath, dstPath);
 					}
 					else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
 					{
-						var srcPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
-						var dstPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
+						string srcPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
+						string dstPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
 						File.Copy(srcPath, dstPath);
 					}
 
@@ -1390,14 +1402,16 @@ internal sealed class ProjectDirector
 		ImGui.EndTable();
 	}
 
+#pragma warning disable CA1502
+
 	private void ShowRepoBrowser()
 	{
-		var allFilesystemEntries = BrowserContentsBase;
-		var baseRepo = Options.Repos[Options.BaseRepo];
-		var directories = allFilesystemEntries.Where(x => Directory.Exists(Path.Combine(baseRepo.LocalPath, Options.BrowsePath, x))).ToCollection();
-		var files = allFilesystemEntries.Except(directories).ToCollection();
+		Collection<RelativePath> allFilesystemEntries = BrowserContentsBase;
+		GitRepository baseRepo = Options.Repos[Options.BaseRepo];
+		Collection<RelativePath> directories = allFilesystemEntries.Where(x => Directory.Exists(Path.Combine(baseRepo.LocalPath, Options.BrowsePath, x))).ToCollection();
+		Collection<RelativePath> files = allFilesystemEntries.Except(directories).ToCollection();
 
-		var shouldOpenPopup = false;
+		bool shouldOpenPopup = false;
 
 		if (ImGui.BeginTable("RepoBrowser", 3, ImGuiTableFlags.Borders))
 		{
@@ -1414,7 +1428,7 @@ internal sealed class ProjectDirector
 					_ = ImGui.Selectable($"..");
 					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 					{
-						var newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
+						string newPath = Path.GetDirectoryName(((string)Options.BrowsePath).RemoveSuffix(Path.DirectorySeparatorChar.ToString()))!;
 						if (string.IsNullOrEmpty(newPath))
 						{
 							SwitchRepoBrowserPath(Options.BaseRepo, new());
@@ -1427,7 +1441,7 @@ internal sealed class ProjectDirector
 				}
 			}
 
-			foreach (var path in directories)
+			foreach (RelativePath? path in directories)
 			{
 				ImGui.TableNextRow();
 				if (ImGui.TableNextColumn())
@@ -1435,7 +1449,7 @@ internal sealed class ProjectDirector
 					_ = ImGui.Selectable(path);
 					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 					{
-						var repoA = Options.Repos[Options.BaseRepo];
+						GitRepository repoA = Options.Repos[Options.BaseRepo];
 						if (repoA is GitHubRepository githubRepoA)
 						{
 							SwitchRepoBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), (RelativeDirectoryPath)path.WeakString);
@@ -1472,7 +1486,7 @@ internal sealed class ProjectDirector
 				}
 			}
 
-			foreach (var path in files)
+			foreach (RelativePath? path in files)
 			{
 				ImGui.TableNextRow();
 				if (ImGui.TableNextColumn())
@@ -1502,25 +1516,25 @@ internal sealed class ProjectDirector
 
 							if (ImGui.Selectable($"Generate Readme"))
 							{
-								var repo = Options.Repos[Options.BaseRepo];
-								var csFiles = Directory.EnumerateFiles(repo.LocalPath, "*.cs", SearchOption.AllDirectories);
-								var allFileContents = new StringBuilder();
-								foreach (var file in csFiles)
+								GitRepository repo = Options.Repos[Options.BaseRepo];
+								IEnumerable<string> csFiles = Directory.EnumerateFiles(repo.LocalPath, "*.cs", SearchOption.AllDirectories);
+								StringBuilder allFileContents = new();
+								foreach (string file in csFiles)
 								{
-									var relativePath = file.RemovePrefix(repo.LocalPath);
+									string relativePath = file.RemovePrefix(repo.LocalPath);
 									allFileContents.AppendLine($"Begin: {relativePath}\n\n" + File.ReadAllText(file) + $"\nEnd: {relativePath}\n\n");
 								}
 
-								var response = ChatClient.CompleteChat("write a github readme file for a project that includes the following files:\n\n" + allFileContents.ToString());
+								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("write a github readme file for a project that includes the following files:\n\n" + allFileContents.ToString());
 								QueueLog($"[ASSISTANT]: {response.Value}");
 							}
 
 							if (ImGui.Selectable($"Summarize"))
 							{
-								var repo = Options.Repos[Options.BaseRepo];
-								var filePath = Path.Combine(repo.LocalPath, path);
-								var fileContents = File.ReadAllText(filePath);
-								var response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
+								GitRepository repo = Options.Repos[Options.BaseRepo];
+								string filePath = Path.Combine(repo.LocalPath, path);
+								string fileContents = File.ReadAllText(filePath);
+								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
 								QueueLog($"[ASSISTANT]: {response.Value}");
 							}
 						}
@@ -1565,8 +1579,8 @@ internal sealed class ProjectDirector
 	private void SwitchCompareBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
 	{
 		Options.BrowsePath = newPath;
-		var repoA = Options.Repos[baseRepo];
-		var repoB = Options.Repos[compareRepo];
+		GitRepository repoA = Options.Repos[baseRepo];
+		GitRepository repoB = Options.Repos[compareRepo];
 
 		static RelativePath formatPath(string path, string prefix) => (RelativePath)(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
 
@@ -1602,7 +1616,7 @@ internal sealed class ProjectDirector
 		}
 
 		Options.BrowsePath = newPath;
-		var repoA = Options.Repos[baseRepo];
+		GitRepository repoA = Options.Repos[baseRepo];
 
 		static RelativePath formatPath(string path, string prefix) => (RelativePath)(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
 

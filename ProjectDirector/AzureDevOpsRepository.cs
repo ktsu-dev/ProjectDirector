@@ -4,20 +4,20 @@
 
 namespace ktsu.ProjectDirector;
 
-using ktsu.StrongStrings;
+using Semantics.Strings;
 
 /// <summary>
 /// Represents the name of an Azure DevOps organization.
 /// </summary>
-public sealed record class AzureDevOpsOrganizationName : StrongStringAbstract<AzureDevOpsOrganizationName> { }
+public sealed record class AzureDevOpsOrganizationName : SemanticString<AzureDevOpsOrganizationName> { }
 /// <summary>
 /// Represents the name of an Azure DevOps project.
 /// </summary>
-public sealed record class AzureDevOpsProjectName : StrongStringAbstract<AzureDevOpsProjectName> { }
+public sealed record class AzureDevOpsProjectName : SemanticString<AzureDevOpsProjectName> { }
 /// <summary>
 /// Represents the name of an Azure DevOps repository.
 /// </summary>
-public sealed record class AzureDevOpsRepoName : StrongStringAbstract<AzureDevOpsRepoName> { }
+public sealed record class AzureDevOpsRepoName : SemanticString<AzureDevOpsRepoName> { }
 
 /// <summary>
 /// Represents an Azure DevOps repository with organization name, project name, and repository name.

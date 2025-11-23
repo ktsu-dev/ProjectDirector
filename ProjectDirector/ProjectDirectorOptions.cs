@@ -8,17 +8,19 @@ using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using ktsu.AppDataStorage;
 using ktsu.ImGuiApp;
-using ktsu.StrongPaths;
-using ktsu.StrongStrings;
+using Semantics.Paths;
+using Semantics.Strings;
 
-public sealed record class OpenAIToken : StrongStringAbstract<OpenAIToken> { }
-public sealed record class GitRemotePath : StrongStringAbstract<GitRemotePath> { }
-public sealed record class GitRemotePathPrefix : StrongStringAbstract<GitRemotePathPrefix> { }
-public sealed record class FullyQualifiedLocalRepoPath : StrongStringAbstract<FullyQualifiedLocalRepoPath> { }
+#pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
+
+public sealed record class OpenAIToken : SemanticString<OpenAIToken> { }
+public sealed record class GitRemotePath : SemanticString<GitRemotePath> { }
+public sealed record class GitRemotePathPrefix : SemanticString<GitRemotePathPrefix> { }
+public sealed record class FullyQualifiedLocalRepoPath : SemanticString<FullyQualifiedLocalRepoPath> { }
 
 public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 {
-	public AbsoluteDirectoryPath DevDirectory { get; set; } = (AbsoluteDirectoryPath)@"C:\dev";
+	public AbsoluteDirectoryPath DevDirectory { get; set; } = @"C:\dev".As<AbsoluteDirectoryPath>();
 	public ImGuiAppWindowState WindowState { get; set; } = new();
 
 	public GitHubLogin GitHubLogin { get; set; } = new();
