@@ -23,5 +23,6 @@
     <PackageReference Include="LibGit2Sharp" />
     <PackageReference Include="Octokit" />
     <PackageReference Include="OpenAI" />
+  <PackageReference Include="Polyfill" />
   </ItemGroup>
 </Project>
