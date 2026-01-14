@@ -21,6 +21,8 @@
     <PackageReference Include="ktsu.ImGuiStyler" />
     <PackageReference Include="ktsu.ImGuiWidgets" />
     <PackageReference Include="LibGit2Sharp" />
+  <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" VersionOverride="10.0.102" />
+  <PackageReference Include="Microsoft.SourceLink.GitHub" VersionOverride="10.0.102" />
     <PackageReference Include="Octokit" />
     <PackageReference Include="OpenAI" />
   <PackageReference Include="Polyfill" />
