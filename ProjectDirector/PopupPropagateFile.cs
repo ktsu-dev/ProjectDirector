@@ -5,9 +5,9 @@
 namespace ktsu.ProjectDirector;
 
 using DiffPlex.Model;
-using ImGuiNET;
+using Hexa.NET.ImGui;
 using ktsu.Extensions;
-using ktsu.ImGuiPopups;
+using ktsu.ImGui.Popups;
 using Semantics.Paths;
 
 internal sealed class PopupPropagateFile

@@ -6,8 +6,8 @@ namespace ktsu.ProjectDirector;
 
 using System.Text.Json.Serialization;
 using DiffPlex.Model;
-using Semantics.Paths;
 using LibGit2Sharp;
+using Semantics.Paths;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 

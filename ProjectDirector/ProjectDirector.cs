@@ -4,24 +4,23 @@
 
 namespace ktsu.ProjectDirector;
 
-using System.ClientModel;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Numerics;
-using System.Text;
 using DiffPlex;
 using DiffPlex.Model;
-using ImGuiNET;
+using Hexa.NET.ImGui;
 using ktsu.Extensions;
-using ktsu.ImGuiApp;
-using ktsu.ImGuiPopups;
-using ktsu.ImGuiWidgets;
-using ktsu.Semantics.Strings;
+using ktsu.ImGui.App;
+using ktsu.ImGui.Popups;
+using ktsu.ImGui.Widgets;
+using ktsu.ImGui.Styler;
 using Octokit;
-using OpenAI.Chat;
+// using OpenAI.Chat;
+using Semantics.Paths;
 
 #pragma warning disable CA1506
 
@@ -43,7 +42,7 @@ internal sealed class ProjectDirector
 	private Collection<RelativePath> BrowserContentsCompare { get; set; } = [];
 	private PopupPropagateFile PopupPropagateFile { get; } = new();
 
-	private ChatClient ChatClient { get; init; }
+	// private ChatClient ChatClient { get; init; }
 
 	private static void Main(string[] _)
 	{
@@ -63,7 +62,7 @@ internal sealed class ProjectDirector
 	{
 		Options = ProjectDirectorOptions.LoadOrCreate();
 		Options.Save();
-		ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
+		// ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
 		DividerDiff = new("DiffDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
 		DividerContainerCols = new("VerticalDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
 		DividerContainerRows = new("HorizontalDivider", DividerResized, ImGuiWidgets.DividerLayout.Rows);
@@ -463,7 +462,7 @@ internal sealed class ProjectDirector
 				{
 					if (!string.IsNullOrEmpty(result))
 					{
-						Options.DevDirectory = (AbsoluteDirectoryPath)result;
+						Options.DevDirectory = AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(result);
 						QueueSaveOptions();
 					}
 				});
@@ -490,8 +489,8 @@ internal sealed class ProjectDirector
 				{
 					if (!string.IsNullOrEmpty(result))
 					{
-						GitHubOwnerName newName = result.As<GitHubOwnerName>();
-						_ = Options.GitHubOwners.TryAdd(newName, string.Empty.As<GitHubToken>());
+						GitHubOwnerName newName = GitHubOwnerName.Create<GitHubOwnerName>(result);
+						_ = Options.GitHubOwners.TryAdd(newName, GitHubToken.Create<GitHubToken>(string.Empty));
 						SyncGitHubOwnerInfo(newName);
 					}
 				});
@@ -540,7 +539,7 @@ internal sealed class ProjectDirector
 				if (gitHubRepo.OwnerName == owner)
 				{
 					bool isCloned = Options.ClonedRepos.ContainsKey(repo.LocalPath);
-					ImGuiWidgets.ColorIndicator(ImGuiStyler.Color.Palette.Basic.Green, isCloned);
+					ImGuiWidgets.ColorIndicator(Color.Palette.Basic.Green, isCloned);
 					ImGui.SameLine();
 					bool isSelected = Options.BaseRepo == repoName;
 					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
@@ -583,16 +582,16 @@ internal sealed class ProjectDirector
 
 			foreach (Repository remoteRepo in remoteRepos)
 			{
-				FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath(Options.DevDirectory / (RelativeDirectoryPath)remoteRepo.FullName);
+				FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath(Options.DevDirectory / RelativeDirectoryPath.Create<RelativeDirectoryPath>(remoteRepo.FullName));
 				FullyQualifiedGitHubRepoName repoName = GetFullyQualifiedRepoName(remoteRepo);
-				GitRepository? repo = GitRepository.Create(remoteRepo.CloneUrl.As<GitRemotePath>(), localPath);
+				GitRepository? repo = GitRepository.Create(GitRemotePath.Create<GitRemotePath>(remoteRepo.CloneUrl), localPath);
 				if (repo is not null)
 				{
 					Options.Repos[repoName] = repo;
 					if (repo is GitHubRepository gitHubRepo)
 					{
 						gitHubRepo.OwnerName = owner;
-						gitHubRepo.RepoName = (GitHubRepoName)remoteRepo.Name;
+						gitHubRepo.RepoName = GitHubRepoName.Create<GitHubRepoName>(remoteRepo.Name);
 					}
 					else
 					{
@@ -657,8 +656,8 @@ internal sealed class ProjectDirector
 		return wasCloned != isCloned;
 	}
 
-	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(Repository repo) => (FullyQualifiedGitHubRepoName)repo.FullName.Replace('/', '.');
-	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(GitHubOwnerName ownerName, GitHubRepoName repoName) => (FullyQualifiedGitHubRepoName)$"{ownerName}.{repoName}";
+	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(Repository repo) => FullyQualifiedGitHubRepoName.Create<FullyQualifiedGitHubRepoName>(repo.FullName.Replace('/', '.'));
+	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(GitHubOwnerName ownerName, GitHubRepoName repoName) => FullyQualifiedGitHubRepoName.Create<FullyQualifiedGitHubRepoName>($"{ownerName}.{repoName}");
 
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
 	private void ScanDevDirectoryForOwnersAndRepos()
@@ -668,24 +667,29 @@ internal sealed class ProjectDirector
 		foreach (string gitDir in gitDirs)
 		{
 			using LibGit2Sharp.Repository localRepo = new(gitDir);
-			FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath((AbsoluteDirectoryPath)localRepo.Info.WorkingDirectory);
-			GitRemotePath remoteUrl = (GitRemotePath)localRepo.Network.Remotes["origin"].Url;
+			FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(localRepo.Info.WorkingDirectory));
+			GitRemotePath remoteUrl = GitRemotePath.Create<GitRemotePath>(localRepo.Network.Remotes["origin"].Url);
 
 			try
 			{
 				GitRepository? repo = GitRepository.Create(remoteUrl, localPath);
 				if (repo is GitHubRepository gitHubRepo)
 				{
-					string[] remoteUrlParts = [.. remoteUrl.Split('/').Reverse()];
-					if (remoteUrlParts.Length >= 2)
+					List<string> remoteUrlParts = [];
+					foreach (ReadOnlySpan<char> part in remoteUrl.Split('/'))
 					{
-						GitHubRepoName repoName = (GitHubRepoName)remoteUrlParts[0].RemoveSuffix(".git");
-						GitHubOwnerName ownerName = (GitHubOwnerName)remoteUrlParts[1];
+						remoteUrlParts.Add(part.ToString());
+					}
+					remoteUrlParts.Reverse();
+					if (remoteUrlParts.Count >= 2)
+					{
+						GitHubRepoName repoName = GitHubRepoName.Create<GitHubRepoName>(remoteUrlParts[0].RemoveSuffix(".git"));
+						GitHubOwnerName ownerName = GitHubOwnerName.Create<GitHubOwnerName>(remoteUrlParts[1]);
 						FullyQualifiedGitHubRepoName repoFullName = GetFullyQualifiedRepoName(ownerName, repoName);
 						Options.Repos[repoFullName] = gitHubRepo;
 						gitHubRepo.OwnerName = ownerName;
 						gitHubRepo.RepoName = repoName;
-						_ = Options.GitHubOwners.TryAdd(gitHubRepo.OwnerName, (GitHubToken)string.Empty);
+						_ = Options.GitHubOwners.TryAdd(gitHubRepo.OwnerName, GitHubToken.Create<GitHubToken>(string.Empty));
 					}
 				}
 			}
@@ -714,7 +718,7 @@ internal sealed class ProjectDirector
 		UpdateClonedStatus();
 	}
 
-	private static FullyQualifiedLocalRepoPath MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath localPath) => (FullyQualifiedLocalRepoPath)Path.GetFullPath(localPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+	private static FullyQualifiedLocalRepoPath MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath localPath) => FullyQualifiedLocalRepoPath.Create<FullyQualifiedLocalRepoPath>(Path.GetFullPath(localPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
 	private void UpdateSimilarRepos(GitRepository repo)
 	{
@@ -779,7 +783,7 @@ internal sealed class ProjectDirector
 					});
 					foreach (string? match in matches)
 					{
-						diffs[(RelativeFilePath)match] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
+						diffs[RelativeFilePath.Create<RelativeFilePath>(match)] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
 					}
 				}
 				catch (LibGit2Sharp.RepositoryNotFoundException)
@@ -1262,7 +1266,7 @@ internal sealed class ProjectDirector
 						}
 						else
 						{
-							SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, (RelativeDirectoryPath)newPath);
+							SwitchCompareBrowserPath(Options.BaseRepo, Options.CompareRepo, RelativeDirectoryPath.Create<RelativeDirectoryPath>(newPath));
 						}
 					}
 				}
@@ -1283,7 +1287,7 @@ internal sealed class ProjectDirector
 						GitRepository repoB = Options.Repos[Options.CompareRepo];
 						if (repoA is GitHubRepository githubRepoA && repoB is GitHubRepository githubRepoB)
 						{
-							SwitchCompareBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), (RelativeDirectoryPath)Path.Combine(Options.BrowsePath, path));
+							SwitchCompareBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), RelativeDirectoryPath.Create<RelativeDirectoryPath>(Path.Combine(Options.BrowsePath, path)));
 
 						}
 						else
@@ -1435,7 +1439,7 @@ internal sealed class ProjectDirector
 						}
 						else
 						{
-							SwitchRepoBrowserPath(Options.BaseRepo, (RelativeDirectoryPath)newPath);
+							SwitchRepoBrowserPath(Options.BaseRepo, RelativeDirectoryPath.Create<RelativeDirectoryPath>(newPath));
 						}
 					}
 				}
@@ -1452,7 +1456,7 @@ internal sealed class ProjectDirector
 						GitRepository repoA = Options.Repos[Options.BaseRepo];
 						if (repoA is GitHubRepository githubRepoA)
 						{
-							SwitchRepoBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), (RelativeDirectoryPath)path.WeakString);
+							SwitchRepoBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), RelativeDirectoryPath.Create<RelativeDirectoryPath>(path.WeakString));
 						}
 						else
 						{
@@ -1514,29 +1518,29 @@ internal sealed class ProjectDirector
 
 							}
 
-							if (ImGui.Selectable($"Generate Readme"))
-							{
-								GitRepository repo = Options.Repos[Options.BaseRepo];
-								IEnumerable<string> csFiles = Directory.EnumerateFiles(repo.LocalPath, "*.cs", SearchOption.AllDirectories);
-								StringBuilder allFileContents = new();
-								foreach (string file in csFiles)
-								{
-									string relativePath = file.RemovePrefix(repo.LocalPath);
-									allFileContents.AppendLine($"Begin: {relativePath}\n\n" + File.ReadAllText(file) + $"\nEnd: {relativePath}\n\n");
-								}
-
-								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("write a github readme file for a project that includes the following files:\n\n" + allFileContents.ToString());
-								QueueLog($"[ASSISTANT]: {response.Value}");
-							}
-
-							if (ImGui.Selectable($"Summarize"))
-							{
-								GitRepository repo = Options.Repos[Options.BaseRepo];
-								string filePath = Path.Combine(repo.LocalPath, path);
-								string fileContents = File.ReadAllText(filePath);
-								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
-								QueueLog($"[ASSISTANT]: {response.Value}");
-							}
+							// 							if (ImGui.Selectable($"Generate Readme"))
+							// 							{
+							// 								GitRepository repo = Options.Repos[Options.BaseRepo];
+							// 								IEnumerable<string> csFiles = Directory.EnumerateFiles(repo.LocalPath, "*.cs", SearchOption.AllDirectories);
+							// 								StringBuilder allFileContents = new();
+							// 								foreach (string file in csFiles)
+							// 								{
+							// 									string relativePath = file.RemovePrefix(repo.LocalPath);
+							// 									allFileContents.AppendLine($"Begin: {relativePath}\n\n" + File.ReadAllText(file) + $"\nEnd: {relativePath}\n\n");
+							// 								}
+							// 
+							// 								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("write a github readme file for a project that includes the following files:\n\n" + allFileContents.ToString());
+							// 								QueueLog($"[ASSISTANT]: {response.Value}");
+							// 							}
+							// 
+							// 							if (ImGui.Selectable($"Summarize"))
+							// 							{
+							// 								GitRepository repo = Options.Repos[Options.BaseRepo];
+							// 								string filePath = Path.Combine(repo.LocalPath, path);
+							// 								string fileContents = File.ReadAllText(filePath);
+							// 								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
+							// 								QueueLog($"[ASSISTANT]: {response.Value}");
+							// 							}
 						}
 
 						ImGui.EndPopup();
@@ -1582,7 +1586,7 @@ internal sealed class ProjectDirector
 		GitRepository repoA = Options.Repos[baseRepo];
 		GitRepository repoB = Options.Repos[compareRepo];
 
-		static RelativePath formatPath(string path, string prefix) => (RelativePath)(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
+		static RelativePath formatPath(string path, string prefix) => RelativePath.Create<RelativePath>(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
 
 		BrowserContentsBase.Clear();
 		BrowserContentsCompare.Clear();
@@ -1618,7 +1622,7 @@ internal sealed class ProjectDirector
 		Options.BrowsePath = newPath;
 		GitRepository repoA = Options.Repos[baseRepo];
 
-		static RelativePath formatPath(string path, string prefix) => (RelativePath)(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
+		static RelativePath formatPath(string path, string prefix) => RelativePath.Create<RelativePath>(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
 
 		BrowserContentsBase.Clear();
 		BrowserContentsCompare.Clear();

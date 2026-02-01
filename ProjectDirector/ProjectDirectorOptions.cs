@@ -7,7 +7,7 @@ namespace ktsu.ProjectDirector;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 using ktsu.AppDataStorage;
-using ktsu.ImGuiApp;
+using ktsu.ImGui.App;
 using Semantics.Paths;
 using Semantics.Strings;
 
@@ -20,7 +20,7 @@ public sealed record class FullyQualifiedLocalRepoPath : SemanticString<FullyQua
 
 public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 {
-	public AbsoluteDirectoryPath DevDirectory { get; set; } = @"C:\dev".As<AbsoluteDirectoryPath>();
+	public AbsoluteDirectoryPath DevDirectory { get; set; } = AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(@"C:\dev");
 	public ImGuiAppWindowState WindowState { get; set; } = new();
 
 	public GitHubLogin GitHubLogin { get; set; } = new();
