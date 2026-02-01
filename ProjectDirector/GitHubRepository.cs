@@ -21,7 +21,7 @@ public sealed class GitHubRepository : GitRepository
 
 	internal static bool IsRemotePathValid(GitRemotePath remotePath)
 	{
-		ArgumentNullException.ThrowIfNull(remotePath);
+		Ensure.NotNull(remotePath);
 		return remotePath.StartsWith("https://github.com/", StringComparison.Ordinal);
 	}
 }

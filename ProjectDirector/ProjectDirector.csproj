@@ -1,12 +1,10 @@
-
-
 <Project>
   <Sdk Name="Microsoft.NET.Sdk" />
   <Sdk Name="ktsu.Sdk" />
   <Sdk Name="ktsu.Sdk.App" />
 
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <TargetFrameworks></TargetFrameworks>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -16,15 +14,15 @@
     <PackageReference Include="ImGui.NET" />
     <PackageReference Include="ktsu.AppDataStorage" />
     <PackageReference Include="ktsu.Extensions" />
-    <PackageReference Include="ktsu.ImGuiApp" />
-    <PackageReference Include="ktsu.ImGuiPopups" />
-    <PackageReference Include="ktsu.ImGuiStyler" />
-    <PackageReference Include="ktsu.ImGuiWidgets" />
+    <PackageReference Include="ktsu.ImGui.App" />
+    <PackageReference Include="ktsu.ImGui.Popups" />
+    <PackageReference Include="ktsu.ImGui.Styler" />
+    <PackageReference Include="ktsu.ImGui.Widgets" />
     <PackageReference Include="LibGit2Sharp" />
-  <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" VersionOverride="10.0.102" />
-  <PackageReference Include="Microsoft.SourceLink.GitHub" VersionOverride="10.0.102" />
+    <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" VersionOverride="10.0.102" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" VersionOverride="10.0.102" />
     <PackageReference Include="Octokit" />
     <PackageReference Include="OpenAI" />
-  <PackageReference Include="Polyfill" />
+    <PackageReference Include="Polyfill" />
   </ItemGroup>
 </Project>
