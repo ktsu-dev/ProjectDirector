@@ -1,3 +1,6 @@
+## v1.0.0
+
+No significant changes detected since v1.0.0.
 ## v1.0.0 (major)
 
 - Migrate to nested Directory.Build.props ([@matt-edmondson](https://github.com/matt-edmondson))
