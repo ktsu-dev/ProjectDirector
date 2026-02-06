@@ -1,6 +1,9 @@
-## v1.0.0
+## v1.0.1-pre.1 (prerelease)
 
-No significant changes detected since v1.0.0.
+Changes since v1.0.0:
+
+- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Sync scripts\update-winget-manifests.ps1 ([@ktsu[bot]](https://github.com/ktsu[bot]))
 ## v1.0.0 (major)
 
 - Migrate to nested Directory.Build.props ([@matt-edmondson](https://github.com/matt-edmondson))
