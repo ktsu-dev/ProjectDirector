@@ -1,7 +1,7 @@
-## v1.0.21 (patch)
+## v1.0.22 (patch)
 
-Changes since v1.0.20:
+Changes since v1.0.21:
 
-- Bump OpenAI from 2.9.1 to 2.10.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.1.0 to 4.2.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
