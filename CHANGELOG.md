@@ -1,6 +1,7 @@
 ## v1.0.32
 
-No significant changes detected since v1.0.32.
+Changes since v1.0.32:
+
 
 ## v1.0.32 (patch)
 
