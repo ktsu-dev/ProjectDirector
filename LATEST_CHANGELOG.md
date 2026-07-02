@@ -2,6 +2,8 @@
 
 Changes since v1.0.40:
 
+- Bump OpenAI from 2.11.0 to 2.12.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 14 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 - Bump Polyfill from 10.11.1 to 10.11.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
 - Bump the ktsu group with 7 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 - Bump Polyfill from 10.11.0 to 10.11.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
