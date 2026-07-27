@@ -2,6 +2,8 @@
 
 Changes since v1.0.40:
 
+- Bump LibGit2Sharp from 0.31.0 to 0.32.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 4 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 - Bump the ktsu group with 4 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 - Bump the ktsu group with 4 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 - Bump the ktsu group with 13 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
