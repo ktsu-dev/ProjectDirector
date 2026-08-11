@@ -22,7 +22,11 @@ dotnet run
 dotnet publish --configuration Release --output ./staging
 ```
 
-This project has no test suite.
+Tests live in `ProjectDirector.Test` (MSTest, via `MSTest.Sdk` + `ktsu.Sdk`). The app exposes its internals to the test project through `InternalsVisibleTo` in `ProjectDirector/AssemblyInfo.cs`. `GitCliTests` drives `GitCli` against throwaway repositories under the temp directory; the ImGui layer is not unit-tested.
+
+```powershell
+dotnet test --configuration Release
+```
 
 ## Architecture
 
@@ -43,9 +47,21 @@ This project has no test suite.
 - Concrete implementations: `GitHubRepository`, `AzureDevOpsRepository`
 - Tracks: remote/local paths, fetch timing, diff results against other repos
 
+**[GitCli.cs](ProjectDirector/GitCli.cs)** - Git access
+- `GitResult` (exit code plus both streams) and the runner that produces it, built on `ktsu.RunCommand`
+- Arguments are passed as a list rather than as a command string, so paths containing spaces need no quoting
+- `RunIn` uses `git -C <repo>`, which never touches the process working directory and so stays safe while repositories are fetched concurrently
+- Queries answer from git's exit code rather than by searching its output for "fatal"
+
+### Why the git command line rather than a library
+
+Git LFS is a pair of filters plus a set of hooks, and all of them belong to the git command. A library that reads and writes the object database directly bypasses them: a commit stores raw bytes where a pointer belongs, and a clone or checkout lands the pointer text on disk where the file belongs. This application clones, fetches and pulls, so it is the checkout side that matters here. `ProjectDirector.Test` pins both halves down.
+
+Authentication follows from the same decision. There are no credentials in this code, because git uses the platform credential helper, which is also what makes SSH remotes work.
+
 ### Key Dependencies
 
-- **LibGit2Sharp** - Git operations (clone, fetch, pull, status)
+- **ktsu.RunCommand** - Starts the git command line, which is how all git work is done (see below)
 - **Octokit** - GitHub API (list repos, user info)
 - **DiffPlex** - Line-by-line file diffing
 - **Hexa.NET.ImGui** - Immediate mode GUI framework

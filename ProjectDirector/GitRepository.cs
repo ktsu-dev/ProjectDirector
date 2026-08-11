@@ -4,7 +4,6 @@ namespace ktsu.ProjectDirector;
 
 using System.Text.Json.Serialization;
 using DiffPlex.Model;
-using LibGit2Sharp;
 using Semantics.Paths;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
@@ -41,12 +40,8 @@ public abstract class GitRepository
 
 	internal void UpdateStatus()
 	{
-		IsDirty = false;
+		IsDirty = GitCli.HasUncommittedChanges(LocalPath);
 		IsOutOfDate = false;
-
-		using Repository repo = new(LocalPath);
-		RepositoryStatus status = repo.RetrieveStatus();
-		IsDirty = status.IsDirty;
 		// work out if the repository is behind the remote
 	}
 }
