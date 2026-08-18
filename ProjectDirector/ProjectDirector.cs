@@ -1,6 +1,4 @@
-// Copyright (c) ktsu.dev
-// All rights reserved.
-// Licensed under the MIT license.
+// Copyright (c) 2023-2026 ktsu-dev contributors
 
 namespace ktsu.ProjectDirector;
 
@@ -539,7 +537,7 @@ internal sealed class ProjectDirector
 				if (gitHubRepo.OwnerName == owner)
 				{
 					bool isCloned = Options.ClonedRepos.ContainsKey(repo.LocalPath);
-					ImGuiWidgets.ColorIndicator(Color.Palette.Basic.Green, isCloned);
+					ImGuiWidgets.ColorIndicator(Palette.Basic.Green, isCloned);
 					ImGui.SameLine();
 					bool isSelected = Options.BaseRepo == repoName;
 					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
