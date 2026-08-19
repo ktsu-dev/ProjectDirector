@@ -1,1 +1,1 @@
-project director;project management;solution management;dotnet;csharp
+project director;project management;solution management;git;multi repository;repository management;bulk git;fetch;pull;diff;file propagation;libgit2sharp;octokit;diffplex;github;azure devops;dear imgui;imgui;desktop application;dotnet;csharp
