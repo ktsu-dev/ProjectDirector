@@ -1,1 +1,1 @@
-ProjectDirector
+A .NET desktop application for managing and comparing many Git repositories side by side. Scans a local development directory, browses GitHub and Azure DevOps remotes, fetches and pulls in bulk, diffs individual files across repositories, and propagates a chosen version of a file to the others. Built on Dear ImGui with a three-panel layout and persistent options, using LibGit2Sharp, Octokit, and DiffPlex underneath.
