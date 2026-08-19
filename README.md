@@ -5,7 +5,7 @@
 [![License](https://img.shields.io/github/license/ktsu-dev/ProjectDirector.svg?label=License&logo=nuget)](LICENSE.md)
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/ktsu-dev/ProjectDirector?label=Commits&logo=github)](https://github.com/ktsu-dev/ProjectDirector/commits/main)
 [![GitHub contributors](https://img.shields.io/github/contributors/ktsu-dev/ProjectDirector?label=Contributors&logo=github)](https://github.com/ktsu-dev/ProjectDirector/graphs/contributors)
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/ProjectDirector/dotnet.yml?label=Build&logo=github)](https://github.com/ktsu-dev/ProjectDirector/actions)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/ktsu-dev/ProjectDirector/dotnet.yml?branch=main&label=Build&logo=github)](https://github.com/ktsu-dev/ProjectDirector/actions)
 
 ## Introduction
 
