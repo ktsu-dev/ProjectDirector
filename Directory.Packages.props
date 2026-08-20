@@ -12,18 +12,16 @@
     <PackageVersion Include="ktsu.ImGui.Popups" Version="3.9.1" />
     <PackageVersion Include="ktsu.ImGui.Styler" Version="3.9.1" />
     <PackageVersion Include="ktsu.ImGui.Widgets" Version="3.9.1" />
+    <PackageVersion Include="ktsu.RunCommand" Version="1.5.1" />
     <PackageVersion Include="ktsu.Semantics.Paths" Version="3.1.1" />
     <PackageVersion Include="ktsu.Semantics.Strings" Version="3.1.1" />
-    <PackageVersion Include="LibGit2Sharp" Version="0.32.0" />
     <PackageVersion Include="Microsoft.SourceLink.AzureRepos.Git" Version="8.0.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="17.14.2" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CrashDump" Version="1.7.2" />
     <PackageVersion Include="Microsoft.Testing.Extensions.Fakes" Version="17.14.1" />
     <PackageVersion Include="Microsoft.Testing.Extensions.HangDump" Version="1.7.2" />
     <PackageVersion Include="Microsoft.Testing.Extensions.HotReload" Version="1.7.2" />
     <PackageVersion Include="Microsoft.Testing.Extensions.Retry" Version="1.7.2" />
-    <PackageVersion Include="Microsoft.Testing.Extensions.TrxReport" Version="1.7.2" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
     <PackageVersion Include="OpenAI" Version="2.13.0" />
     <PackageVersion Include="Polyfill" Version="11.2.0" />

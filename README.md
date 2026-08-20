@@ -85,7 +85,7 @@ folder, so subsequent runs start where you left off.
 
 | Package | Used for |
 | --- | --- |
-| [LibGit2Sharp](https://github.com/libgit2/libgit2sharp) | Git operations — clone, fetch, pull, status |
+| [ktsu.RunCommand](https://github.com/ktsu-dev/RunCommand) | Runs the git command line — clone, fetch, pull, status |
 | [Octokit](https://github.com/octokit/octokit.net) | GitHub API access |
 | [DiffPlex](https://github.com/mmanela/diffplex) | Line-by-line file diffing |
 | [ktsu.ImGuiApp](https://github.com/ktsu-dev/ImGuiApp) | Application shell and window management |

@@ -85,12 +85,6 @@ internal sealed class ProjectDirector
 
 		RestoreDividerStates();
 
-		LibGit2Sharp.GlobalSettings.LogConfiguration = new(LibGit2Sharp.LogLevel.Debug, new((level, message) =>
-		{
-			string logMessage = $"[{level} {DateTimeOffset.Now}] {message}";
-			QueueLog(logMessage);
-		}));
-
 		GitHubClient = new(new ProductHeaderValue("ktsu.ProjectDirector"));
 
 		if (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken))
@@ -107,6 +101,24 @@ internal sealed class ProjectDirector
 		while (LogQueue.Count > LogLinesMax)
 		{
 			LogQueue.TryDequeue(out _);
+		}
+	}
+
+	/// <summary>
+	/// Reports what git did in the log panel. This is what the panel carries now that libgit2's
+	/// debug trace is gone, and it is considerably more useful: the panel shows the transfer
+	/// progress and any failure git reported, rather than library internals.
+	/// </summary>
+	/// <remarks>
+	/// Safe to call from the background tasks that run fetch and pull, because the queue behind it
+	/// is concurrent.
+	/// </remarks>
+	private void QueueGitLog(string description, GitResult result)
+	{
+		QueueLog($"[{DateTimeOffset.Now}] {description}{(result.Succeeded ? string.Empty : " failed")}");
+		foreach (string line in result.AllLines)
+		{
+			QueueLog($"    {line}");
 		}
 	}
 
@@ -199,42 +211,21 @@ internal sealed class ProjectDirector
 		repo.LastFetchTime = DateTime.UtcNow;
 		QueueSaveOptions();
 
-		Task task = new(() =>
-		{
-			LibGit2Sharp.Repository localRepo = new(repoPath);
-			LibGit2Sharp.FetchOptions fetchOptions = new();
-			LibGit2Sharp.Remote origin = localRepo.Network.Remotes["origin"];
-			IEnumerable<string> refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
-			LibGit2Sharp.Commands.Fetch(localRepo, "origin", refSpecs, fetchOptions, $"Fetching {repo.RemotePath}");
-		});
+		// Authentication is the platform credential helper's job now, which is also what makes SSH
+		// remotes work without any configuration here.
+		Task task = new(() => QueueGitLog($"Fetching {repo.RemotePath}", GitCli.RunIn(repoPath, "fetch", "origin")));
 
 		task.Start();
 	}
 
-	private static void PullRepo(GitRepository repo)
+	private void PullRepo(GitRepository repo)
 	{
 		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
-		Task task = new(() =>
-		{
-			LibGit2Sharp.Repository localRepo = new(repoPath);
-			LibGit2Sharp.FetchOptions fetchOptions = new();
-			LibGit2Sharp.Remote origin = localRepo.Network.Remotes["origin"];
-			IEnumerable<string> refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
-			try
-			{
-				_ = LibGit2Sharp.Commands.Pull(localRepo, new("ProjectDirector", "ProjectDirector@ktsu.dev", DateTimeOffset.Now), new()
-				{
-					FetchOptions = new(),
-					MergeOptions = new()
-					{
-						CommitOnSuccess = true,
-					},
-				});
-			}
-			catch (LibGit2Sharp.CheckoutConflictException)
-			{
-			}
-		});
+		// --ff-only rather than a real merge. The previous code committed a merge unattended and
+		// swallowed the conflict exception, which left the working tree mid-conflict with nothing
+		// said about it. Refusing to advance a divergent branch, and reporting why in the log
+		// panel, is the safer default for an unattended background pull.
+		Task task = new(() => QueueGitLog($"Pulling {repo.RemotePath}", GitCli.RunIn(repoPath, "pull", "--ff-only")));
 
 		task.Start();
 	}
@@ -293,7 +284,7 @@ internal sealed class ProjectDirector
 				{
 					if (ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
 					{
-						Task.Run(() => _ = LibGit2Sharp.Repository.Clone(repo.RemotePath, repo.LocalPath))
+						Task.Run(() => QueueGitLog($"Cloning {repo.RemotePath}", GitCli.Run("clone", repo.RemotePath.ToString(), repo.LocalPath.ToString())))
 						.ContinueWith((t) => RefreshPage(),
 						new CancellationToken(),
 						TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
@@ -339,17 +330,8 @@ internal sealed class ProjectDirector
 
 					if (ImGui.Button("Pull", new Vector2(FieldWidth, 0)))
 					{
-						// TODO: check if there are any uncommitted changes and warn the user
-						//var task = new Task(() =>
-						//{
-						//	var localRepo = new LibGit2Sharp.Repository(repoPath);
-						//	var fetchOptions = new LibGit2Sharp.FetchOptions();
-						//	var origin = localRepo.Network.Remotes["origin"];
-						//	var refSpecs = origin.FetchRefSpecs.Select(x => x.Specification);
-						//	LibGit2Sharp.Commands.Pull(localRepo
-						//});
-
-						//task.Start();
+						// TODO: check if there are any uncommitted changes and warn the user before
+						// calling PullRepo(repo), which is otherwise ready to be wired up here.
 					}
 
 					ImGui.SameLine();
@@ -625,15 +607,7 @@ internal sealed class ProjectDirector
 	{
 		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
 		bool wasCloned = Options.ClonedRepos.ContainsKey(repoPath);
-		bool isCloned = true;
-		try
-		{
-			using LibGit2Sharp.Repository _ = new(repoPath);
-		}
-		catch (LibGit2Sharp.RepositoryNotFoundException)
-		{
-			isCloned = false;
-		}
+		bool isCloned = GitCli.IsRepository(repoPath);
 
 		if (isCloned)
 		{
@@ -664,9 +638,24 @@ internal sealed class ProjectDirector
 		IEnumerable<string> gitDirs = Directory.EnumerateDirectories(Options.DevDirectory, ".git", SearchOption.AllDirectories);
 		foreach (string gitDir in gitDirs)
 		{
-			using LibGit2Sharp.Repository localRepo = new(gitDir);
-			FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(localRepo.Info.WorkingDirectory));
-			GitRemotePath remoteUrl = GitRemotePath.Create<GitRemotePath>(localRepo.Network.Remotes["origin"].Url);
+			// The working tree is the parent of the .git directory, so there is nothing to ask git
+			// for here. Enumerating directories already skips worktrees and submodules, where .git
+			// is a file rather than a directory.
+			string workingDirectory = Directory.GetParent(gitDir)?.FullName ?? string.Empty;
+			if (!GitCli.IsRepository(workingDirectory))
+			{
+				continue;
+			}
+
+			string originUrl = GitCli.GetRemoteUrl(workingDirectory, "origin");
+			if (string.IsNullOrEmpty(originUrl))
+			{
+				// A repository with no origin has no remote to track against.
+				continue;
+			}
+
+			FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(workingDirectory));
+			GitRemotePath remoteUrl = GitRemotePath.Create<GitRemotePath>(originUrl);
 
 			try
 			{
@@ -741,91 +730,58 @@ internal sealed class ProjectDirector
 	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, GitRepository repoB)
 	{
 		Dictionary<RelativeFilePath, DiffResult> diffs = [];
-		try
-		{
-			using LibGit2Sharp.Repository gitRepo = new(repoA.LocalPath);
-			IEnumerable<string> fileList = gitRepo.Index.Select(x => x.Path);
 
-			if (repoA != repoB)
-			{
-				try
-				{
-					using LibGit2Sharp.Repository otherGitRepo = new(repoB.LocalPath);
-					IEnumerable<string> otherFileList = otherGitRepo.Index.Select(x => x.Path);
-					Collection<string> matches = fileList.Intersect(otherFileList).ToCollection();
-					Dictionary<string, string> fileContents = matches.ToDictionary(x => x, x =>
-					{
-						try
-						{
-							return File.ReadAllText(Path.Combine(repoA.LocalPath, x));
-						}
-						catch (FileNotFoundException)
-						{
-							return string.Empty;
-						}
-					});
-					Dictionary<string, string> otherFileContents = matches.ToDictionary(x => x, x =>
-					{
-						try
-						{
-							return File.ReadAllText(Path.Combine(repoB.LocalPath, x));
-						}
-						catch (FileNotFoundException)
-						{
-							return string.Empty;
-						}
-						catch (DirectoryNotFoundException)
-						{
-							return string.Empty;
-						}
-					});
-					foreach (string? match in matches)
-					{
-						diffs[RelativeFilePath.Create<RelativeFilePath>(match)] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
-					}
-				}
-				catch (LibGit2Sharp.RepositoryNotFoundException)
-				{
-					// skip this repo
-				}
-			}
-		}
-		catch (LibGit2Sharp.RepositoryNotFoundException)
+		if (repoA == repoB || !GitCli.IsRepository(repoA.LocalPath) || !GitCli.IsRepository(repoB.LocalPath))
 		{
-			// skip this repo
+			return diffs;
+		}
+
+		Collection<string> matches = GitCli.ListTrackedFiles(repoA.LocalPath)
+			.Intersect(GitCli.ListTrackedFiles(repoB.LocalPath))
+			.ToCollection();
+
+		Dictionary<string, string> fileContents = matches.ToDictionary(x => x, x => ReadFileOrEmpty(repoA.LocalPath, x));
+		Dictionary<string, string> otherFileContents = matches.ToDictionary(x => x, x => ReadFileOrEmpty(repoB.LocalPath, x));
+
+		foreach (string match in matches)
+		{
+			diffs[RelativeFilePath.Create<RelativeFilePath>(match)] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
 		}
 
 		return diffs;
 	}
 
-	private static DiffResult DiffSingleFile(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
+	/// <summary>
+	/// Reads a tracked file from a working tree, treating anything missing on disk as empty. A file
+	/// can be tracked and still be absent, and a diff against nothing is the useful answer.
+	/// </summary>
+	private static string ReadFileOrEmpty(string repoPath, string relativePath)
 	{
 		try
 		{
-			using LibGit2Sharp.Repository gitRepo = new(repoA.LocalPath);
-
-			if (repoA != repoB)
-			{
-				try
-				{
-					using LibGit2Sharp.Repository otherGitRepo = new(repoB.LocalPath);
-
-					string fileContents = File.ReadAllText(Path.Combine(repoA.LocalPath, filePath));
-					string otherFileContents = File.ReadAllText(Path.Combine(repoB.LocalPath, filePath));
-					return Differ.Instance.CreateLineDiffs(fileContents, otherFileContents, ignoreWhitespace: false, ignoreCase: false);
-				}
-				catch (LibGit2Sharp.RepositoryNotFoundException)
-				{
-					// skip this repo
-				}
-			}
+			return File.ReadAllText(Path.Combine(repoPath, relativePath));
 		}
-		catch (LibGit2Sharp.RepositoryNotFoundException)
+		catch (FileNotFoundException)
 		{
-			// skip this repo
+			return string.Empty;
+		}
+		catch (DirectoryNotFoundException)
+		{
+			return string.Empty;
+		}
+	}
+
+	private static DiffResult DiffSingleFile(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
+	{
+		if (repoA == repoB || !GitCli.IsRepository(repoA.LocalPath) || !GitCli.IsRepository(repoB.LocalPath))
+		{
+			return new([], [], []);
 		}
 
-		return new([], [], []);
+		string fileContents = ReadFileOrEmpty(repoA.LocalPath, filePath);
+		string otherFileContents = ReadFileOrEmpty(repoB.LocalPath, filePath);
+
+		return Differ.Instance.CreateLineDiffs(fileContents, otherFileContents, ignoreWhitespace: false, ignoreCase: false);
 	}
 
 	private static void RefreshFileDiff(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)

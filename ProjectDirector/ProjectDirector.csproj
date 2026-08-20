@@ -19,9 +19,9 @@
     <PackageReference Include="ktsu.ImGui.Popups" />
     <PackageReference Include="ktsu.ImGui.Styler" />
     <PackageReference Include="ktsu.ImGui.Widgets" />
+    <PackageReference Include="ktsu.RunCommand" />
     <PackageReference Include="ktsu.Semantics.Paths" />
     <PackageReference Include="ktsu.Semantics.Strings" />
-    <PackageReference Include="LibGit2Sharp" />
     <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" VersionOverride="10.0.102" />
     <PackageReference Include="Microsoft.SourceLink.GitHub" VersionOverride="10.0.102" />
     <PackageReference Include="Octokit" />
