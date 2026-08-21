@@ -1,1 +1,1 @@
-project director;project management;solution management;git;multi repository;repository management;bulk git;fetch;pull;diff;file propagation;git cli;git lfs;octokit;diffplex;github;azure devops;dear imgui;imgui;desktop application;dotnet;csharp
+project management;solution management;git;multi repository;repository management;bulk git;fetch;pull;diff;file propagation;git cli;git lfs;octokit;diffplex;github;azure devops;dear imgui;desktop application;dotnet;csharp
