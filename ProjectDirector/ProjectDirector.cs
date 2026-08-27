@@ -220,6 +220,23 @@ internal sealed class ProjectDirector
 	}
 
 	/// <summary>
+	/// Decides whether pulling a repository should ask the user first.
+	/// </summary>
+	/// <param name="repoPath">The working tree that would be pulled into.</param>
+	/// <returns>
+	/// <see cref="PullDecision.Confirm"/> when the working tree has uncommitted changes,
+	/// <see cref="PullDecision.PullNow"/> otherwise.
+	/// </returns>
+	/// <remarks>
+	/// Separated from <see cref="PullRepoConfirmingUncommittedChanges"/> so the decision can be
+	/// tested. Everything around it draws ImGui and needs a live context and a display; this is
+	/// the part with a rule in it, and <c>ProjectDirectorPullTests</c> drives it against real
+	/// throwaway repositories.
+	/// </remarks>
+	internal static PullDecision DecidePull(FullyQualifiedLocalRepoPath repoPath) =>
+		GitCli.HasUncommittedChanges(repoPath) ? PullDecision.Confirm : PullDecision.PullNow;
+
+	/// <summary>
 	/// Pulls <paramref name="repo"/>, first asking the user to confirm if the working tree has
 	/// uncommitted changes.
 	/// </summary>
@@ -233,7 +250,7 @@ internal sealed class ProjectDirector
 	/// </remarks>
 	private void PullRepoConfirmingUncommittedChanges(GitRepository repo)
 	{
-		if (!GitCli.HasUncommittedChanges(repo.LocalPath))
+		if (DecidePull(repo.LocalPath) == PullDecision.PullNow)
 		{
 			PullRepo(repo);
 			return;
