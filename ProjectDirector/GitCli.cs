@@ -164,6 +164,56 @@ internal static class GitCli
 	}
 
 	/// <summary>
+	/// Lists the repository-relative paths of every file that <c>git commit</c> would include
+	/// after <c>git add --all</c>, tracked or otherwise.
+	/// </summary>
+	/// <param name="repositoryPath">The working tree to query.</param>
+	/// <returns>The pending paths, or an empty collection when the path is not a repository.</returns>
+	/// <remarks>
+	/// Asks the same <c>status --porcelain</c> that <see cref="HasUncommittedChanges"/> does, but
+	/// with -z so entries are NUL-separated and git applies none of the quoting it otherwise uses
+	/// for paths holding unusual characters -- the names arrive exactly as recorded.
+	///
+	/// Each record is two status characters, a space, then the path. A rename or copy additionally
+	/// emits its <em>source</em> path as a bare following entry with no status prefix, which is why
+	/// the loop consumes that entry rather than testing every entry for a prefix: a source path
+	/// such as <c>ab cd.txt</c> has a space in the third position and so is indistinguishable from
+	/// a record by inspection alone. Reporting it would list a file that no longer exists.
+	/// </remarks>
+	internal static Collection<string> ListPendingChanges(string repositoryPath)
+	{
+		GitResult result = RunIn(repositoryPath, "status", "--porcelain", "-z");
+
+		Collection<string> changes = [];
+		if (!result.Succeeded)
+		{
+			return changes;
+		}
+
+		string[] entries = result.Output.Split('\0');
+		for (int i = 0; i < entries.Length; ++i)
+		{
+			string entry = entries[i];
+
+			// A record needs a status pair, its separator, and at least one character of path.
+			if (entry.Length < 4 || entry[2] != ' ')
+			{
+				continue;
+			}
+
+			changes.Add(entry[3..]);
+
+			// A rename or copy is recorded against the index, in the first status character.
+			if (entry[0] is 'R' or 'C')
+			{
+				++i;
+			}
+		}
+
+		return changes;
+	}
+
+	/// <summary>
 	/// Determines whether the working tree has any uncommitted change, tracked or otherwise.
 	/// </summary>
 	/// <param name="repositoryPath">The working tree to query.</param>

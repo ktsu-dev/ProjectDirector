@@ -8,6 +8,7 @@ using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
 using System.Numerics;
+using System.Text;
 using DiffPlex;
 using DiffPlex.Model;
 using Hexa.NET.ImGui;
@@ -37,6 +38,7 @@ internal sealed class ProjectDirector
 	private ImGuiPopups.InputString PopupSetDevDirectory { get; } = new();
 	private ImGuiPopups.InputString PopupAddNewGitHubOwner { get; } = new();
 	private ImGuiPopups.Prompt PopupConfirmPull { get; } = new();
+	private ImGuiPopups.InputString PopupCommitMessage { get; } = new();
 	private Collection<RelativePath> BrowserContentsBase { get; set; } = [];
 	private Collection<RelativePath> BrowserContentsCompare { get; set; } = [];
 	private PopupPropagateFile PopupPropagateFile { get; } = new();
@@ -280,6 +282,121 @@ internal sealed class ProjectDirector
 		task.Start();
 	}
 
+	/// <summary>
+	/// The number of pending paths the commit prompt lists before summarising the rest.
+	/// </summary>
+	private const int MaxListedPendingChanges = 20;
+
+	/// <summary>
+	/// Builds the text shown above the commit message box: the paths that will be committed.
+	/// </summary>
+	/// <param name="changes">The pending paths, as <see cref="GitCli.ListPendingChanges"/> reports them.</param>
+	/// <returns>A count line followed by one indented path per line, capped.</returns>
+	/// <remarks>
+	/// Committing stages everything, untracked files included, so the user has to be able to see
+	/// what that sweeps up before agreeing to it. The cap exists because a repository mid-rebuild
+	/// can have thousands of pending paths, and a prompt taller than the display cannot be
+	/// dismissed. Pure, so <c>ProjectDirectorCommitTests</c> can drive it without an ImGui context.
+	/// </remarks>
+	internal static string DescribePendingChanges(Collection<string> changes)
+	{
+		Ensure.NotNull(changes);
+
+		StringBuilder builder = new();
+		_ = builder.Append(changes.Count == 1
+			? "1 file will be committed:"
+			: $"{changes.Count} files will be committed:");
+
+		int listed = Math.Min(changes.Count, MaxListedPendingChanges);
+		for (int i = 0; i < listed; ++i)
+		{
+			_ = builder.Append("\n    ").Append(changes[i]);
+		}
+
+		int remaining = changes.Count - listed;
+		if (remaining > 0)
+		{
+			_ = builder.Append($"\n    ... and {remaining} more");
+		}
+
+		return builder.ToString();
+	}
+
+	/// <summary>
+	/// Asks for a commit message, showing what will be committed, then commits on confirmation.
+	/// </summary>
+	/// <param name="repo">The repository to commit.</param>
+	/// <remarks>
+	/// The pending paths are gathered before the prompt opens rather than while it is up, so the
+	/// list the user agreed to is the one they were shown. It is still advisory: the working tree
+	/// can change while the prompt is open, and git is the authority on what actually gets staged.
+	/// </remarks>
+	private void CommitRepoAfterConfirmation(GitRepository repo)
+	{
+		Collection<string> changes = GitCli.ListPendingChanges(repo.LocalPath);
+		if (changes.Count == 0)
+		{
+			QueueLog($"[{DateTimeOffset.Now}] {repo.LocalPath} has nothing to commit");
+			return;
+		}
+
+		PopupCommitMessage.Open(
+			"Commit Message?",
+			DescribePendingChanges(changes),
+			string.Empty,
+			message =>
+			{
+				if (!string.IsNullOrWhiteSpace(message))
+				{
+					CommitRepo(repo, message);
+				}
+			});
+	}
+
+	/// <summary>
+	/// Stages everything and commits it, reporting both steps in the log panel.
+	/// </summary>
+	/// <param name="repo">The repository to commit.</param>
+	/// <param name="message">The commit message.</param>
+	/// <remarks>
+	/// The commit is skipped when staging fails, because committing after a failed <c>add</c>
+	/// would record a subset of what the user was shown without saying so.
+	/// </remarks>
+	private void CommitRepo(GitRepository repo, string message)
+	{
+		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
+		Task task = new(() =>
+		{
+			GitResult staged = GitCli.RunIn(repoPath, "add", "--all");
+			if (!staged.Succeeded)
+			{
+				QueueGitLog($"Staging {repo.LocalPath}", staged);
+				return;
+			}
+
+			QueueGitLog($"Committing {repo.LocalPath}", GitCli.RunIn(repoPath, "commit", "-m", message));
+		});
+
+		task.Start();
+	}
+
+	/// <summary>
+	/// Pushes the current branch, reporting the result in the log panel.
+	/// </summary>
+	/// <param name="repo">The repository to push.</param>
+	/// <remarks>
+	/// A plain <c>push</c> with no refspec and no force. A rejection is a non-zero exit that
+	/// <see cref="QueueGitLog"/> surfaces along with git's own explanation, rather than being
+	/// swallowed. Credentials come from the platform credential helper, as everywhere else here.
+	/// </remarks>
+	private void PushRepo(GitRepository repo)
+	{
+		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
+		Task task = new(() => QueueGitLog($"Pushing {repo.RemotePath}", GitCli.RunIn(repoPath, "push")));
+
+		task.Start();
+	}
+
 	private void SwitchPage(FullyQualifiedGitHubRepoName baseRepo)
 	{
 		if (Options.Repos.TryGetValue(baseRepo, out GitRepository? repo))
@@ -316,6 +433,7 @@ internal sealed class ProjectDirector
 		_ = PopupSetDevDirectory.ShowIfOpen();
 		_ = PopupAddNewGitHubOwner.ShowIfOpen();
 		_ = PopupConfirmPull.ShowIfOpen();
+		_ = PopupCommitMessage.ShowIfOpen();
 
 		FetchAllReposIfStale();
 		SaveOptionsIfRequired();
@@ -386,21 +504,16 @@ internal sealed class ProjectDirector
 
 					ImGui.SameLine();
 
-					// Commit and Push have no implementation behind them. They stay visible so the
-					// intended layout is not disturbed, but disabled so the UI does not advertise
-					// a capability that is not there -- an enabled button that silently does
-					// nothing reads as a bug rather than as unfinished work. See issue #392.
-					ImGui.BeginDisabled();
-					_ = ImGui.Button("Commit", new Vector2(FieldWidth, 0));
-					bool commitHovered = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
-					ImGui.SameLine();
-					_ = ImGui.Button("Push", new Vector2(FieldWidth, 0));
-					bool pushHovered = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
-					ImGui.EndDisabled();
-
-					if (commitHovered || pushHovered)
+					if (ImGui.Button("Commit", new Vector2(FieldWidth, 0)))
 					{
-						ImGui.SetTooltip("Not implemented yet.");
+						CommitRepoAfterConfirmation(repo);
+					}
+
+					ImGui.SameLine();
+
+					if (ImGui.Button("Push", new Vector2(FieldWidth, 0)))
+					{
+						PushRepo(repo);
 					}
 				}
 			});
