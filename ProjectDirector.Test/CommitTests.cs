@@ -430,6 +430,42 @@ public sealed class CommitTests
 	}
 
 	/// <summary>
+	/// A commit that ran is reported as a commit.
+	/// </summary>
+	[TestMethod]
+	public void AnAttemptedCommitIsReportedAsACommit()
+	{
+		// Arrange
+		GitResult staged = new(0, string.Empty, string.Empty);
+		GitResult committed = new(0, "done", string.Empty);
+
+		// Act
+		(string description, GitResult result) = ProjectDirector.DescribeCommitOutcome("repo", new GitCommitOutcome(staged, committed));
+
+		// Assert
+		Assert.AreEqual("Committing repo", description);
+		Assert.AreSame(committed, result);
+	}
+
+	/// <summary>
+	/// A commit that never ran is reported as the staging failure it actually was. Labelling it as
+	/// a commit would send the user looking at the wrong step.
+	/// </summary>
+	[TestMethod]
+	public void ACommitThatNeverRanIsReportedAsStaging()
+	{
+		// Arrange
+		GitResult staged = new(128, string.Empty, "not a git repository");
+
+		// Act
+		(string description, GitResult result) = ProjectDirector.DescribeCommitOutcome("repo", new GitCommitOutcome(staged, null));
+
+		// Assert
+		Assert.AreEqual("Staging repo", description);
+		Assert.AreSame(staged, result);
+	}
+
+	/// <summary>
 	/// A single change reads as one file, not "1 files".
 	/// </summary>
 	[TestMethod]

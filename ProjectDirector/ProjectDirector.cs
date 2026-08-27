@@ -367,17 +367,32 @@ internal sealed class ProjectDirector
 		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
 		Task task = new(() =>
 		{
-			GitCommitOutcome outcome = GitCli.StageAllAndCommit(repoPath, message);
-			if (outcome.Committed is null)
-			{
-				QueueGitLog($"Staging {repo.LocalPath}", outcome.Staged);
-				return;
-			}
-
-			QueueGitLog($"Committing {repo.LocalPath}", outcome.Committed);
+			(string description, GitResult result) = DescribeCommitOutcome(repoPath, GitCli.StageAllAndCommit(repoPath, message));
+			QueueGitLog(description, result);
 		});
 
 		task.Start();
+	}
+
+	/// <summary>
+	/// Chooses which step of a commit the log panel reports, and under which description.
+	/// </summary>
+	/// <param name="repositoryLabel">How to name the repository in the description.</param>
+	/// <param name="outcome">What staging and committing reported.</param>
+	/// <returns>The description to log and the result it describes.</returns>
+	/// <remarks>
+	/// A null commit result means staging failed and the commit was never attempted, so the staging
+	/// failure is what there is to report. Getting this backwards is not cosmetic: a user whose
+	/// <c>git add</c> failed would be told "Committing ... failed" and go looking at the wrong step.
+	/// Pure, so it can be tested without an ImGui context.
+	/// </remarks>
+	internal static (string Description, GitResult Result) DescribeCommitOutcome(string repositoryLabel, GitCommitOutcome outcome)
+	{
+		Ensure.NotNull(outcome);
+
+		return outcome.Committed is null
+			? ($"Staging {repositoryLabel}", outcome.Staged)
+			: ($"Committing {repositoryLabel}", outcome.Committed);
 	}
 
 	/// <summary>
