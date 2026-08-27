@@ -36,6 +36,7 @@ internal sealed class ProjectDirector
 	private ConcurrentQueue<string> LogQueue { get; } = new();
 	private ImGuiPopups.InputString PopupSetDevDirectory { get; } = new();
 	private ImGuiPopups.InputString PopupAddNewGitHubOwner { get; } = new();
+	private ImGuiPopups.Prompt PopupConfirmPull { get; } = new();
 	private Collection<RelativePath> BrowserContentsBase { get; set; } = [];
 	private Collection<RelativePath> BrowserContentsCompare { get; set; } = [];
 	private PopupPropagateFile PopupPropagateFile { get; } = new();
@@ -218,6 +219,38 @@ internal sealed class ProjectDirector
 		task.Start();
 	}
 
+	/// <summary>
+	/// Pulls <paramref name="repo"/>, first asking the user to confirm if the working tree has
+	/// uncommitted changes.
+	/// </summary>
+	/// <param name="repo">The repository to pull.</param>
+	/// <remarks>
+	/// <see cref="PullRepo(GitRepository)"/> already passes <c>--ff-only</c>, so a divergent
+	/// branch is refused rather than merged. That protects the history but says nothing about the
+	/// working tree: a pull across uncommitted changes can still fail partway, or succeed and
+	/// leave the user unsure which changes were theirs. Asking first is the point of the
+	/// confirmation -- it is a warning, not a safety mechanism, so pulling anyway stays available.
+	/// </remarks>
+	private void PullRepoConfirmingUncommittedChanges(GitRepository repo)
+	{
+		if (!GitCli.HasUncommittedChanges(repo.LocalPath))
+		{
+			PullRepo(repo);
+			return;
+		}
+
+		PopupConfirmPull.Open(
+			"Uncommitted Changes",
+			$"{repo.LocalPath} has uncommitted changes.\n\nPulling now may fail partway or leave the working tree in a confusing state.\n\nPull anyway?",
+			new Dictionary<string, Action?>
+			{
+				["Pull Anyway"] = () => PullRepo(repo),
+				["Cancel"] = null,
+			},
+			ImGuiPopups.PromptTextLayoutType.Wrapped,
+			new Vector2(420, 0));
+	}
+
 	private void PullRepo(GitRepository repo)
 	{
 		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
@@ -265,6 +298,7 @@ internal sealed class ProjectDirector
 
 		_ = PopupSetDevDirectory.ShowIfOpen();
 		_ = PopupAddNewGitHubOwner.ShowIfOpen();
+		_ = PopupConfirmPull.ShowIfOpen();
 
 		FetchAllReposIfStale();
 		SaveOptionsIfRequired();
@@ -330,14 +364,27 @@ internal sealed class ProjectDirector
 
 					if (ImGui.Button("Pull", new Vector2(FieldWidth, 0)))
 					{
-						// TODO: check if there are any uncommitted changes and warn the user before
-						// calling PullRepo(repo), which is otherwise ready to be wired up here.
+						PullRepoConfirmingUncommittedChanges(repo);
 					}
 
 					ImGui.SameLine();
-					_ = ImGui.Button("Commit", new Vector2(FieldWidth, 0)); // TODO
+
+					// Commit and Push have no implementation behind them. They stay visible so the
+					// intended layout is not disturbed, but disabled so the UI does not advertise
+					// a capability that is not there -- an enabled button that silently does
+					// nothing reads as a bug rather than as unfinished work. See issue #392.
+					ImGui.BeginDisabled();
+					_ = ImGui.Button("Commit", new Vector2(FieldWidth, 0));
+					bool commitHovered = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
 					ImGui.SameLine();
-					_ = ImGui.Button("Push", new Vector2(FieldWidth, 0)); // TODO
+					_ = ImGui.Button("Push", new Vector2(FieldWidth, 0));
+					bool pushHovered = ImGui.IsItemHovered(ImGuiHoveredFlags.AllowWhenDisabled);
+					ImGui.EndDisabled();
+
+					if (commitHovered || pushHovered)
+					{
+						ImGui.SetTooltip("Not implemented yet.");
+					}
 				}
 			});
 
