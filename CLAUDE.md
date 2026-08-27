@@ -54,6 +54,8 @@ dotnet test --configuration Release
 - Arguments are passed as a list rather than as a command string, so paths containing spaces need no quoting
 - `RunIn` uses `git -C <repo>`, which never touches the process working directory and so stays safe while repositories are fetched concurrently
 - Queries answer from git's exit code rather than by searching its output for "fatal"
+- `StageAllAndCommit` returns a null commit result when staging failed, so a caller can tell "never attempted" from "git refused". A clean tree is the second kind: git exits non-zero and that refusal is passed through rather than being pre-empted here
+- `Push` sends no refspec and no force, so a branch with no upstream and a diverged branch are both refused by git, with its own explanation, rather than guessed at or overwritten
 - `ListPendingChanges` parses `status --porcelain -z` by *consuming* a rename's trailing source entry rather than by testing each entry for a status prefix. A source path such as `ab cd.txt` has a space in the third position and is indistinguishable from a record by inspection, so a prefix test would list a file that no longer exists
 
 ### Why the git command line rather than a library

@@ -249,6 +249,187 @@ public sealed class CommitTests
 	}
 
 	/// <summary>
+	/// The whole point of the button: an edit ends up in a commit.
+	/// </summary>
+	[TestMethod]
+	public void StagingAndCommittingRecordsAModifiedFile()
+	{
+		// Arrange
+		string root = CreateCommittedRepository();
+
+		try
+		{
+			File.WriteAllText(Path.Join(root, "tracked.txt"), "modified\n");
+
+			// Act
+			GitCommitOutcome outcome = GitCli.StageAllAndCommit(root, "the message");
+
+			// Assert
+			Assert.IsTrue(outcome.Staged.Succeeded, $"git add failed: {outcome.Staged.FailureText}");
+			Assert.IsNotNull(outcome.Committed);
+			Assert.IsTrue(outcome.Committed.Succeeded, $"git commit failed: {outcome.Committed.FailureText}");
+
+			Assert.IsFalse(GitCli.HasUncommittedChanges(root), "The tree is still dirty after committing.");
+			Assert.AreEqual("the message", GitCli.RunIn(root, "log", "-1", "--format=%s").OutputText);
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
+	/// Staging is <c>add --all</c>, so an untracked file is committed too. This is the behaviour
+	/// the prompt's file list warns about, and it has to actually be the behaviour.
+	/// </summary>
+	[TestMethod]
+	public void StagingAndCommittingSweepsUpAnUntrackedFile()
+	{
+		// Arrange
+		string root = CreateCommittedRepository();
+
+		try
+		{
+			File.WriteAllText(Path.Join(root, "untracked.txt"), "new\n");
+
+			// Act
+			GitCommitOutcome outcome = GitCli.StageAllAndCommit(root, "sweep");
+
+			// Assert
+			Assert.IsNotNull(outcome.Committed);
+			Assert.IsTrue(outcome.Committed.Succeeded, $"git commit failed: {outcome.Committed.FailureText}");
+
+			Collection<string> tracked = GitCli.ListTrackedFiles(root);
+			Assert.IsTrue(tracked.Contains("untracked.txt"), "The untracked file was not committed.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
+	/// A clean tree is git's refusal to report, not this code's to invent. The commit result comes
+	/// back non-null and failed so the log panel can show git's own wording, and HEAD must not move.
+	/// </summary>
+	[TestMethod]
+	public void CommittingACleanTreeFailsWithoutMovingHead()
+	{
+		// Arrange
+		string root = CreateCommittedRepository();
+
+		try
+		{
+			string before = GitCli.RunIn(root, "rev-parse", "HEAD").OutputText;
+
+			// Act
+			GitCommitOutcome outcome = GitCli.StageAllAndCommit(root, "nothing here");
+
+			// Assert
+			Assert.IsTrue(outcome.Staged.Succeeded);
+			Assert.IsNotNull(outcome.Committed, "A clean tree is a failed commit, not a failed stage.");
+			Assert.IsFalse(outcome.Committed.Succeeded, "git accepted an empty commit.");
+			Assert.AreEqual(before, GitCli.RunIn(root, "rev-parse", "HEAD").OutputText, "HEAD moved.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
+	/// When staging fails there is no commit result at all, because the commit was never attempted.
+	/// That distinction is what stops a partial index being recorded as if it were the whole change.
+	/// </summary>
+	[TestMethod]
+	public void AFailedStageSkipsTheCommitEntirely()
+	{
+		// Arrange
+		string root = Path.Join(Path.GetTempPath(), $"ktsu_pd_commit_{Guid.NewGuid():N}");
+		_ = Directory.CreateDirectory(root);
+
+		try
+		{
+			// Act
+			GitCommitOutcome outcome = GitCli.StageAllAndCommit(root, "never runs");
+
+			// Assert
+			Assert.IsFalse(outcome.Staged.Succeeded, "git add succeeded outside a repository.");
+			Assert.IsNull(outcome.Committed, "The commit was attempted after staging failed.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
+	/// Pushing lands the commit in the remote. A bare repository on the local filesystem stands in
+	/// for one, so this exercises real push negotiation with no network and no credentials.
+	/// </summary>
+	[TestMethod]
+	public void PushingSendsTheCommitToTheRemote()
+	{
+		// Arrange
+		string root = CreateCommittedRepository();
+		string remote = Path.Join(Path.GetTempPath(), $"ktsu_pd_remote_{Guid.NewGuid():N}");
+
+		try
+		{
+			Assert.IsTrue(GitCli.Run("init", "--bare", remote).Succeeded, "git init --bare failed.");
+			Assert.IsTrue(GitCli.RunIn(root, "remote", "add", "origin", remote).Succeeded);
+
+			string branch = GitCli.RunIn(root, "rev-parse", "--abbrev-ref", "HEAD").OutputText;
+			GitResult upstream = GitCli.RunIn(root, "push", "--set-upstream", "origin", branch);
+			Assert.IsTrue(upstream.Succeeded, $"establishing the upstream failed: {upstream.FailureText}");
+
+			File.WriteAllText(Path.Join(root, "tracked.txt"), "modified\n");
+			GitCommitOutcome outcome = GitCli.StageAllAndCommit(root, "to push");
+			Assert.IsNotNull(outcome.Committed);
+			Assert.IsTrue(outcome.Committed.Succeeded);
+
+			string local = GitCli.RunIn(root, "rev-parse", "HEAD").OutputText;
+
+			// Act
+			GitResult pushed = GitCli.Push(root);
+
+			// Assert
+			Assert.IsTrue(pushed.Succeeded, $"git push failed: {pushed.FailureText}");
+			Assert.AreEqual(local, GitCli.RunIn(remote, "rev-parse", branch).OutputText, "The remote did not receive the commit.");
+		}
+		finally
+		{
+			Cleanup(remote);
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
+	/// A branch with no upstream is refused by git rather than guessed at here, and the refusal
+	/// carries git's own explanation for the log panel instead of being swallowed.
+	/// </summary>
+	[TestMethod]
+	public void PushingWithNoUpstreamFailsAndSaysWhy()
+	{
+		// Arrange
+		string root = CreateCommittedRepository();
+
+		try
+		{
+			// Act
+			GitResult pushed = GitCli.Push(root);
+
+			// Assert
+			Assert.IsFalse(pushed.Succeeded, "git push succeeded with no remote configured.");
+			Assert.AreNotEqual(0, pushed.FailureText.Length, "git said nothing about why the push failed.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
 	/// A single change reads as one file, not "1 files".
 	/// </summary>
 	[TestMethod]

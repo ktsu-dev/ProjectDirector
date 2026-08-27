@@ -62,6 +62,16 @@ internal sealed record GitResult(int ExitCode, string Output, string Error)
 }
 
 /// <summary>
+/// The outcome of staging and committing: what each step reported.
+/// </summary>
+/// <param name="Staged">The result of <c>git add --all</c>.</param>
+/// <param name="Committed">
+/// The result of <c>git commit</c>, or <see langword="null"/> when staging failed and the commit
+/// was therefore never attempted.
+/// </param>
+internal sealed record GitCommitOutcome(GitResult Staged, GitResult? Committed);
+
+/// <summary>
 /// Runs the git command line.
 /// </summary>
 /// <remarks>
@@ -212,6 +222,40 @@ internal static class GitCli
 
 		return changes;
 	}
+
+	/// <summary>
+	/// Stages every change, tracked or otherwise, then commits them.
+	/// </summary>
+	/// <param name="repositoryPath">The working tree to commit.</param>
+	/// <param name="message">The commit message.</param>
+	/// <returns>What each step reported, with a null commit result when staging failed.</returns>
+	/// <remarks>
+	/// The commit is skipped when staging fails, rather than committing whatever happened to make
+	/// it into the index: recording a subset of what the user agreed to, without saying so, is
+	/// worse than recording nothing. A clean tree is not a failure of this method -- git itself
+	/// refuses with a non-zero exit, and that refusal is returned as the commit result so the
+	/// caller can report git's own wording.
+	/// </remarks>
+	internal static GitCommitOutcome StageAllAndCommit(string repositoryPath, string message)
+	{
+		GitResult staged = RunIn(repositoryPath, "add", "--all");
+
+		return staged.Succeeded
+			? new GitCommitOutcome(staged, RunIn(repositoryPath, "commit", "-m", message))
+			: new GitCommitOutcome(staged, null);
+	}
+
+	/// <summary>
+	/// Pushes the current branch to its configured upstream.
+	/// </summary>
+	/// <param name="repositoryPath">The working tree to push from.</param>
+	/// <returns>The exit code and captured output.</returns>
+	/// <remarks>
+	/// No refspec and no force, so a branch with no upstream is refused by git rather than guessed
+	/// at here, and a diverged branch is refused rather than overwritten. Both refusals come back
+	/// as a non-zero exit carrying git's own explanation, which is what the log panel shows.
+	/// </remarks>
+	internal static GitResult Push(string repositoryPath) => RunIn(repositoryPath, "push");
 
 	/// <summary>
 	/// Determines whether the working tree has any uncommitted change, tracked or otherwise.

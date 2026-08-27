@@ -367,14 +367,14 @@ internal sealed class ProjectDirector
 		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
 		Task task = new(() =>
 		{
-			GitResult staged = GitCli.RunIn(repoPath, "add", "--all");
-			if (!staged.Succeeded)
+			GitCommitOutcome outcome = GitCli.StageAllAndCommit(repoPath, message);
+			if (outcome.Committed is null)
 			{
-				QueueGitLog($"Staging {repo.LocalPath}", staged);
+				QueueGitLog($"Staging {repo.LocalPath}", outcome.Staged);
 				return;
 			}
 
-			QueueGitLog($"Committing {repo.LocalPath}", GitCli.RunIn(repoPath, "commit", "-m", message));
+			QueueGitLog($"Committing {repo.LocalPath}", outcome.Committed);
 		});
 
 		task.Start();
@@ -392,7 +392,7 @@ internal sealed class ProjectDirector
 	private void PushRepo(GitRepository repo)
 	{
 		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
-		Task task = new(() => QueueGitLog($"Pushing {repo.RemotePath}", GitCli.RunIn(repoPath, "push")));
+		Task task = new(() => QueueGitLog($"Pushing {repo.RemotePath}", GitCli.Push(repoPath)));
 
 		task.Start();
 	}
