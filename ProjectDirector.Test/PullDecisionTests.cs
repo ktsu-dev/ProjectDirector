@@ -25,7 +25,7 @@ public sealed class PullDecisionTests
 {
 	private static FullyQualifiedLocalRepoPath CreateCommittedRepository()
 	{
-		string root = Path.Combine(Path.GetTempPath(), $"ktsu_pd_pull_{Guid.NewGuid():N}");
+		string root = Path.Join(Path.GetTempPath(), $"ktsu_pd_pull_{Guid.NewGuid():N}");
 		_ = Directory.CreateDirectory(root);
 
 		Assert.IsTrue(GitCli.Run("init", root).Succeeded, "git init failed.");
@@ -35,7 +35,7 @@ public sealed class PullDecisionTests
 		Assert.IsTrue(GitCli.RunIn(root, "config", "user.name", "ProjectDirector").Succeeded);
 		Assert.IsTrue(GitCli.RunIn(root, "config", "user.email", "ProjectDirector@ktsu.dev").Succeeded);
 
-		File.WriteAllText(Path.Combine(root, "tracked.txt"), "original\n");
+		File.WriteAllText(Path.Join(root, "tracked.txt"), "original\n");
 		Assert.IsTrue(GitCli.RunIn(root, "add", "--all").Succeeded, "git add failed.");
 
 		GitResult committed = GitCli.RunIn(root, "commit", "-m", "initial");
@@ -91,7 +91,7 @@ public sealed class PullDecisionTests
 
 		try
 		{
-			File.WriteAllText(Path.Combine(root.WeakString, "tracked.txt"), "modified\n");
+			File.WriteAllText(Path.Join(root.WeakString, "tracked.txt"), "modified\n");
 
 			// Act & Assert
 			Assert.AreEqual(PullDecision.Confirm, ProjectDirector.DecidePull(root));
@@ -113,7 +113,7 @@ public sealed class PullDecisionTests
 
 		try
 		{
-			File.WriteAllText(Path.Combine(root.WeakString, "untracked.txt"), "new\n");
+			File.WriteAllText(Path.Join(root.WeakString, "untracked.txt"), "new\n");
 
 			// Act & Assert
 			Assert.AreEqual(PullDecision.Confirm, ProjectDirector.DecidePull(root));
@@ -135,7 +135,7 @@ public sealed class PullDecisionTests
 
 		try
 		{
-			File.WriteAllText(Path.Combine(root.WeakString, "staged.txt"), "staged\n");
+			File.WriteAllText(Path.Join(root.WeakString, "staged.txt"), "staged\n");
 			Assert.IsTrue(GitCli.RunIn(root, "add", "--all").Succeeded, "git add failed.");
 
 			// Act & Assert
@@ -159,7 +159,7 @@ public sealed class PullDecisionTests
 
 		try
 		{
-			File.WriteAllText(Path.Combine(root.WeakString, "tracked.txt"), "modified\n");
+			File.WriteAllText(Path.Join(root.WeakString, "tracked.txt"), "modified\n");
 			Assert.AreEqual(PullDecision.Confirm, ProjectDirector.DecidePull(root));
 
 			// Act
