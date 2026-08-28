@@ -62,6 +62,16 @@ internal sealed record GitResult(int ExitCode, string Output, string Error)
 }
 
 /// <summary>
+/// The outcome of staging and committing: what each step reported.
+/// </summary>
+/// <param name="Staged">The result of <c>git add --all</c>.</param>
+/// <param name="Committed">
+/// The result of <c>git commit</c>, or <see langword="null"/> when staging failed and the commit
+/// was therefore never attempted.
+/// </param>
+internal sealed record GitCommitOutcome(GitResult Staged, GitResult? Committed);
+
+/// <summary>
 /// Runs the git command line.
 /// </summary>
 /// <remarks>
@@ -162,6 +172,90 @@ internal static class GitCli
 
 		return files;
 	}
+
+	/// <summary>
+	/// Lists the repository-relative paths of every file that <c>git commit</c> would include
+	/// after <c>git add --all</c>, tracked or otherwise.
+	/// </summary>
+	/// <param name="repositoryPath">The working tree to query.</param>
+	/// <returns>The pending paths, or an empty collection when the path is not a repository.</returns>
+	/// <remarks>
+	/// Asks the same <c>status --porcelain</c> that <see cref="HasUncommittedChanges"/> does, but
+	/// with -z so entries are NUL-separated and git applies none of the quoting it otherwise uses
+	/// for paths holding unusual characters -- the names arrive exactly as recorded.
+	///
+	/// Each record is two status characters, a space, then the path. A rename or copy additionally
+	/// emits its <em>source</em> path as a bare following entry with no status prefix, which is why
+	/// the loop consumes that entry rather than testing every entry for a prefix: a source path
+	/// such as <c>ab cd.txt</c> has a space in the third position and so is indistinguishable from
+	/// a record by inspection alone. Reporting it would list a file that no longer exists.
+	/// </remarks>
+	internal static Collection<string> ListPendingChanges(string repositoryPath)
+	{
+		GitResult result = RunIn(repositoryPath, "status", "--porcelain", "-z");
+
+		Collection<string> changes = [];
+		if (!result.Succeeded)
+		{
+			return changes;
+		}
+
+		string[] entries = result.Output.Split('\0');
+		for (int i = 0; i < entries.Length; ++i)
+		{
+			string entry = entries[i];
+
+			// A record needs a status pair, its separator, and at least one character of path.
+			if (entry.Length < 4 || entry[2] != ' ')
+			{
+				continue;
+			}
+
+			changes.Add(entry[3..]);
+
+			// A rename or copy is recorded against the index, in the first status character.
+			if (entry[0] is 'R' or 'C')
+			{
+				++i;
+			}
+		}
+
+		return changes;
+	}
+
+	/// <summary>
+	/// Stages every change, tracked or otherwise, then commits them.
+	/// </summary>
+	/// <param name="repositoryPath">The working tree to commit.</param>
+	/// <param name="message">The commit message.</param>
+	/// <returns>What each step reported, with a null commit result when staging failed.</returns>
+	/// <remarks>
+	/// The commit is skipped when staging fails, rather than committing whatever happened to make
+	/// it into the index: recording a subset of what the user agreed to, without saying so, is
+	/// worse than recording nothing. A clean tree is not a failure of this method -- git itself
+	/// refuses with a non-zero exit, and that refusal is returned as the commit result so the
+	/// caller can report git's own wording.
+	/// </remarks>
+	internal static GitCommitOutcome StageAllAndCommit(string repositoryPath, string message)
+	{
+		GitResult staged = RunIn(repositoryPath, "add", "--all");
+
+		return staged.Succeeded
+			? new GitCommitOutcome(staged, RunIn(repositoryPath, "commit", "-m", message))
+			: new GitCommitOutcome(staged, null);
+	}
+
+	/// <summary>
+	/// Pushes the current branch to its configured upstream.
+	/// </summary>
+	/// <param name="repositoryPath">The working tree to push from.</param>
+	/// <returns>The exit code and captured output.</returns>
+	/// <remarks>
+	/// No refspec and no force, so a branch with no upstream is refused by git rather than guessed
+	/// at here, and a diverged branch is refused rather than overwritten. Both refusals come back
+	/// as a non-zero exit carrying git's own explanation, which is what the log panel shows.
+	/// </remarks>
+	internal static GitResult Push(string repositoryPath) => RunIn(repositoryPath, "push");
 
 	/// <summary>
 	/// Determines whether the working tree has any uncommitted change, tracked or otherwise.
