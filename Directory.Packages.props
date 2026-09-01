@@ -6,15 +6,15 @@
     <PackageVersion Include="DiffPlex" Version="1.9.0" />
     <PackageVersion Include="Hexa.NET.ImGui" Version="2.2.9" />
     <PackageVersion Include="ImGui.NET" Version="1.91.6.1" />
-    <PackageVersion Include="ktsu.AppDataStorage" Version="1.16.46" />
+    <PackageVersion Include="ktsu.AppDataStorage" Version="1.16.47" />
     <PackageVersion Include="ktsu.Extensions" Version="1.6.8" />
-    <PackageVersion Include="ktsu.ImGui.App" Version="3.16.2" />
-    <PackageVersion Include="ktsu.ImGui.Popups" Version="3.16.2" />
-    <PackageVersion Include="ktsu.ImGui.Styler" Version="3.16.2" />
-    <PackageVersion Include="ktsu.ImGui.Widgets" Version="3.16.2" />
-    <PackageVersion Include="ktsu.RunCommand" Version="1.5.8" />
-    <PackageVersion Include="ktsu.Semantics.Paths" Version="3.2.1" />
-    <PackageVersion Include="ktsu.Semantics.Strings" Version="3.2.1" />
+    <PackageVersion Include="ktsu.ImGui.App" Version="3.16.3" />
+    <PackageVersion Include="ktsu.ImGui.Popups" Version="3.16.3" />
+    <PackageVersion Include="ktsu.ImGui.Styler" Version="3.16.3" />
+    <PackageVersion Include="ktsu.ImGui.Widgets" Version="3.16.3" />
+    <PackageVersion Include="ktsu.RunCommand" Version="1.5.9" />
+    <PackageVersion Include="ktsu.Semantics.Paths" Version="3.2.2" />
+    <PackageVersion Include="ktsu.Semantics.Strings" Version="3.2.2" />
     <PackageVersion Include="Microsoft.SourceLink.AzureRepos.Git" Version="8.0.0" />
     <PackageVersion Include="Microsoft.SourceLink.GitHub" Version="8.0.0" />
     <PackageVersion Include="Microsoft.Testing.Extensions.CrashDump" Version="1.7.2" />
