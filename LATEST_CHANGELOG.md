@@ -1,7 +1,6 @@
-## v1.2.5 (patch)
+## v1.2.6 (patch)
 
-Changes since v1.2.4:
+Changes since v1.2.5:
 
-- Bump MSTest.Sdk from 4.3.3 to 4.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 5 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
