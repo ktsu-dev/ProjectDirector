@@ -23,7 +23,7 @@
     <PackageVersion Include="Microsoft.Testing.Extensions.HotReload" Version="1.7.2" />
     <PackageVersion Include="Microsoft.Testing.Extensions.Retry" Version="1.7.2" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
-    <PackageVersion Include="OpenAI" Version="2.13.0" />
+    <PackageVersion Include="OpenAI" Version="2.14.0" />
     <PackageVersion Include="Polyfill" Version="11.3.0" />
   </ItemGroup>
 </Project>
