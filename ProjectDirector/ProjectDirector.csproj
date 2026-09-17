@@ -22,8 +22,8 @@
     <PackageReference Include="ktsu.RunCommand" />
     <PackageReference Include="ktsu.Semantics.Paths" />
     <PackageReference Include="ktsu.Semantics.Strings" />
-    <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" VersionOverride="10.0.102" />
-    <PackageReference Include="Microsoft.SourceLink.GitHub" VersionOverride="10.0.102" />
+    <PackageReference Include="Microsoft.SourceLink.AzureRepos.Git" VersionOverride="10.0.401" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" VersionOverride="10.0.401" />
     <PackageReference Include="Octokit" />
     <PackageReference Include="OpenAI" />
     <PackageReference Include="Polyfill" PrivateAssets="all" />
