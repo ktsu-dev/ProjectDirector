@@ -16,10 +16,17 @@ internal sealed class PopupPropagateFile
 	private ImGuiPopups.Prompt Prompt { get; } = new();
 	private bool ShouldClose { get; set; }
 
-	public void Open(ProjectDirectorOptions options)
+	/// <summary>
+	/// Where this popup reports what propagating did, so a batch copy is accounted for in the log
+	/// panel the same way every git action already is.
+	/// </summary>
+	private Action<string> Log { get; set; } = _ => { };
+
+	public void Open(ProjectDirectorOptions options, Action<string> log)
 	{
 		ShouldClose = false;
 		Options = options;
+		Log = log;
 		Propagation.Clear();
 		Modal.Open("Propagate File", ShowContent);
 	}
@@ -72,19 +79,12 @@ internal sealed class PopupPropagateFile
 	{
 		GitRepository repo = Options.Repos[Options.BaseRepo];
 		string from = Path.Combine(repo.LocalPath, Options.PropagatePath);
-		foreach ((FullyQualifiedGitHubRepoName name, bool shouldPropagate) in Propagation)
+		Dictionary<FullyQualifiedGitHubRepoName, string> destinations = FilePropagation.ResolveDestinations(Propagation, Options.Repos, Options.PropagatePath);
+		FilePropagationReport report = FilePropagation.Propagate(from, destinations);
+
+		foreach (string line in FilePropagation.DescribeForLog(report, DateTimeOffset.Now))
 		{
-			if (shouldPropagate)
-			{
-				GitRepository otherRepo = Options.Repos[name];
-				string to = Path.Combine(otherRepo.LocalPath, Options.PropagatePath);
-				string? directory = Path.GetDirectoryName(to);
-				if (!string.IsNullOrEmpty(directory))
-				{
-					_ = Directory.CreateDirectory(directory);
-					File.Copy(from, to, overwrite: true);
-				}
-			}
+			Log(line);
 		}
 
 		ShouldClose = true;
