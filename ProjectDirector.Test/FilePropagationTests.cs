@@ -88,7 +88,7 @@ public sealed class FilePropagationTests
 			Assert.IsTrue(File.Exists(last), "The repository after the failure should still have been attempted.");
 			Assert.AreEqual(SourceContent, File.ReadAllText(last));
 
-			Assert.AreEqual(3, report.Results.Count, "Every requested repository should be accounted for.");
+			Assert.HasCount(3, report.Results, "Every requested repository should be accounted for.");
 			Assert.IsTrue(report.Results[0].Succeeded);
 			Assert.IsFalse(report.Results[1].Succeeded, "The occupied destination should be reported as a failure.");
 			Assert.IsFalse(string.IsNullOrWhiteSpace(report.Results[1].Failure), "A failure should carry its reason.");
@@ -122,10 +122,10 @@ public sealed class FilePropagationTests
 
 			Collection<string> lines = FilePropagation.Propagate(source, destinations).Summarize();
 
-			StringAssert.Contains(lines[0], "2 of 3", StringComparison.Ordinal);
-			StringAssert.Contains(lines[0], "ktsu-dev/blocked", StringComparison.Ordinal);
-			Assert.AreEqual(2, lines.Count, "One summary line, then one detail line for the single failure.");
-			StringAssert.Contains(lines[1], "ktsu-dev/blocked", StringComparison.Ordinal);
+			Assert.Contains("2 of 3", lines[0], StringComparison.Ordinal);
+			Assert.Contains("ktsu-dev/blocked", lines[0], StringComparison.Ordinal);
+			Assert.HasCount(2, lines, "One summary line, then one detail line for the single failure.");
+			Assert.Contains("ktsu-dev/blocked", lines[1], StringComparison.Ordinal);
 		}
 		finally
 		{
@@ -153,8 +153,8 @@ public sealed class FilePropagationTests
 			Collection<string> lines = report.Summarize();
 
 			Assert.IsTrue(report.SourceExists);
-			Assert.AreEqual(1, lines.Count);
-			StringAssert.Contains(lines[0], "2 of 2", StringComparison.Ordinal);
+			Assert.HasCount(1, lines);
+			Assert.Contains("2 of 2", lines[0], StringComparison.Ordinal);
 			Assert.IsFalse(lines[0].Contains("failed", StringComparison.Ordinal));
 		}
 		finally
@@ -215,9 +215,9 @@ public sealed class FilePropagationTests
 
 			FilePropagationReport report = FilePropagation.Propagate(source, destinations);
 
-			Assert.AreEqual(1, report.Results.Count, "The repository should still be accounted for.");
+			Assert.HasCount(1, report.Results, "The repository should still be accounted for.");
 			Assert.IsFalse(report.Results[0].Succeeded);
-			StringAssert.Contains(report.Results[0].Failure!, "containing directory", StringComparison.Ordinal);
+			Assert.Contains("containing directory", report.Results[0].Failure!, StringComparison.Ordinal);
 		}
 		finally
 		{
@@ -274,7 +274,7 @@ public sealed class FilePropagationTests
 		Dictionary<FullyQualifiedGitHubRepoName, string> destinations =
 			FilePropagation.ResolveDestinations(selection, repos, Path.Join("src", ".editorconfig"));
 
-		Assert.AreEqual(2, destinations.Count, "An unchecked repository should not get a destination.");
+		Assert.HasCount(2, destinations, "An unchecked repository should not get a destination.");
 		Assert.IsFalse(destinations.ContainsKey(Repo("ktsu-dev/second")));
 		Assert.AreEqual(Path.Join("dev", "first", "src", ".editorconfig"), destinations[Repo("ktsu-dev/first")]);
 		Assert.AreEqual(Path.Join("dev", "third", "src", ".editorconfig"), destinations[Repo("ktsu-dev/third")]);
@@ -294,10 +294,10 @@ public sealed class FilePropagationTests
 
 		Collection<string> lines = FilePropagation.DescribeForLog(report, at);
 
-		Assert.AreEqual(2, lines.Count);
-		StringAssert.StartsWith(lines[0], $"[{at}] ", StringComparison.Ordinal);
-		StringAssert.Contains(lines[0], "1 of 2", StringComparison.Ordinal);
-		StringAssert.StartsWith(lines[1], "    ", StringComparison.Ordinal);
+		Assert.HasCount(2, lines);
+		Assert.StartsWith($"[{at}] ", lines[0], StringComparison.Ordinal);
+		Assert.Contains("1 of 2", lines[0], StringComparison.Ordinal);
+		Assert.StartsWith("    ", lines[1], StringComparison.Ordinal);
 		Assert.IsFalse(lines[1].Contains($"[{at}]", StringComparison.Ordinal), "Detail lines are indented under the summary, not stamped again.");
 	}
 
@@ -319,10 +319,10 @@ public sealed class FilePropagationTests
 			Collection<string> lines = report.Summarize();
 
 			Assert.IsFalse(report.SourceExists);
-			Assert.AreEqual(0, report.Results.Count, "No repository should be touched when there is nothing to copy.");
+			Assert.IsEmpty(report.Results, "No repository should be touched when there is nothing to copy.");
 			Assert.IsFalse(Directory.Exists(Path.GetDirectoryName(destination)!), "A failed run should not create destination directories.");
-			Assert.AreEqual(1, lines.Count, "A missing source is one failure, not one per repository.");
-			StringAssert.Contains(lines[0], "does not exist", StringComparison.Ordinal);
+			Assert.HasCount(1, lines, "A missing source is one failure, not one per repository.");
+			Assert.Contains("does not exist", lines[0], StringComparison.Ordinal);
 		}
 		finally
 		{
