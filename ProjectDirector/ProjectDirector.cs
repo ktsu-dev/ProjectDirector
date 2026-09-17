@@ -1720,7 +1720,7 @@ internal sealed class ProjectDirector
 
 		if (shouldOpenPopup)
 		{
-			PopupPropagateFile.Open(Options);
+			PopupPropagateFile.Open(Options, QueueLog);
 		}
 
 		_ = PopupPropagateFile.ShowIfOpen();
