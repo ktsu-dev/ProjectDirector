@@ -164,6 +164,144 @@ public sealed class FilePropagationTests
 	}
 
 	[TestMethod]
+	public void ADestinationWhoseParentIsAFileIsReportedRatherThanThrown()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string source = Path.Join(root, "source", ".editorconfig");
+			_ = Directory.CreateDirectory(Path.GetDirectoryName(source)!);
+			File.WriteAllText(source, SourceContent);
+
+			// A plain file where the destination expects a directory: creating the containing
+			// directory fails rather than the copy itself, which is the other half of the guard.
+			string fileInTheWay = Path.Join(root, "blocked");
+			File.WriteAllText(fileInTheWay, "not a directory\n");
+
+			KeyValuePair<FullyQualifiedGitHubRepoName, string>[] destinations =
+			[
+				new(Repo("ktsu-dev/blocked"), Path.Join(fileInTheWay, "nested", ".editorconfig")),
+				new(Repo("ktsu-dev/last"), Path.Join(root, "last", ".editorconfig")),
+			];
+
+			FilePropagationReport report = FilePropagation.Propagate(source, destinations);
+
+			Assert.IsFalse(report.Results[0].Succeeded);
+			Assert.IsFalse(string.IsNullOrWhiteSpace(report.Results[0].Failure));
+			Assert.IsTrue(report.Results[1].Succeeded, "The repository after the failure should still have been attempted.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	[TestMethod]
+	public void ADestinationWithNoContainingDirectoryIsReportedRatherThanSkipped()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string source = Path.Join(root, "source", ".editorconfig");
+			_ = Directory.CreateDirectory(Path.GetDirectoryName(source)!);
+			File.WriteAllText(source, SourceContent);
+
+			// A bare filename has no directory part. The old code silently skipped this case; a
+			// repository the user checked and heard nothing about is the bug, not the edge case.
+			KeyValuePair<FullyQualifiedGitHubRepoName, string>[] destinations =
+			[
+				new(Repo("ktsu-dev/bare"), "nocontainingdirectory.txt"),
+			];
+
+			FilePropagationReport report = FilePropagation.Propagate(source, destinations);
+
+			Assert.AreEqual(1, report.Results.Count, "The repository should still be accounted for.");
+			Assert.IsFalse(report.Results[0].Succeeded);
+			StringAssert.Contains(report.Results[0].Failure!, "containing directory", StringComparison.Ordinal);
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	[TestMethod]
+	public void ADestinationThatIsNotAUsablePathIsReportedRatherThanThrown()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string source = Path.Join(root, "source", ".editorconfig");
+			_ = Directory.CreateDirectory(Path.GetDirectoryName(source)!);
+			File.WriteAllText(source, SourceContent);
+
+			// An embedded null is rejected by the path APIs on every platform, which is the
+			// ArgumentException arm of the guard.
+			KeyValuePair<FullyQualifiedGitHubRepoName, string>[] destinations =
+			[
+				new(Repo("ktsu-dev/invalid"), Path.Join(root, "in\0valid", ".editorconfig")),
+				new(Repo("ktsu-dev/last"), Path.Join(root, "last", ".editorconfig")),
+			];
+
+			FilePropagationReport report = FilePropagation.Propagate(source, destinations);
+
+			Assert.IsFalse(report.Results[0].Succeeded);
+			Assert.IsTrue(report.Results[1].Succeeded, "The repository after the failure should still have been attempted.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	[TestMethod]
+	public void OnlyTheCheckedRepositoriesGetADestination()
+	{
+		Dictionary<FullyQualifiedGitHubRepoName, GitRepository> repos = new()
+		{
+			[Repo("ktsu-dev/first")] = new GitHubRepository { LocalPath = Path.Join("dev", "first").As<FullyQualifiedLocalRepoPath>() },
+			[Repo("ktsu-dev/second")] = new GitHubRepository { LocalPath = Path.Join("dev", "second").As<FullyQualifiedLocalRepoPath>() },
+			[Repo("ktsu-dev/third")] = new GitHubRepository { LocalPath = Path.Join("dev", "third").As<FullyQualifiedLocalRepoPath>() },
+		};
+
+		KeyValuePair<FullyQualifiedGitHubRepoName, bool>[] selection =
+		[
+			new(Repo("ktsu-dev/first"), true),
+			new(Repo("ktsu-dev/second"), false),
+			new(Repo("ktsu-dev/third"), true),
+		];
+
+		Dictionary<FullyQualifiedGitHubRepoName, string> destinations =
+			FilePropagation.ResolveDestinations(selection, repos, Path.Join("src", ".editorconfig"));
+
+		Assert.AreEqual(2, destinations.Count, "An unchecked repository should not get a destination.");
+		Assert.IsFalse(destinations.ContainsKey(Repo("ktsu-dev/second")));
+		Assert.AreEqual(Path.Join("dev", "first", "src", ".editorconfig"), destinations[Repo("ktsu-dev/first")]);
+		Assert.AreEqual(Path.Join("dev", "third", "src", ".editorconfig"), destinations[Repo("ktsu-dev/third")]);
+	}
+
+	[TestMethod]
+	public void OnlyTheSummaryLineCarriesTheTimestamp()
+	{
+		DateTimeOffset at = new(2026, 9, 17, 11, 30, 0, TimeSpan.Zero);
+		FilePropagationReport report = new(
+			".editorconfig",
+			SourceExists: true,
+			[
+				new(Repo("ktsu-dev/first"), "first", null),
+				new(Repo("ktsu-dev/blocked"), "blocked", "denied"),
+			]);
+
+		Collection<string> lines = FilePropagation.DescribeForLog(report, at);
+
+		Assert.AreEqual(2, lines.Count);
+		StringAssert.StartsWith(lines[0], $"[{at}] ", StringComparison.Ordinal);
+		StringAssert.Contains(lines[0], "1 of 2", StringComparison.Ordinal);
+		StringAssert.StartsWith(lines[1], "    ", StringComparison.Ordinal);
+		Assert.IsFalse(lines[1].Contains($"[{at}]", StringComparison.Ordinal), "Detail lines are indented under the summary, not stamped again.");
+	}
+
+	[TestMethod]
 	public void AMissingSourceIsReportedOnceAndLeavesEveryRepositoryAlone()
 	{
 		string root = CreateWorkspace();

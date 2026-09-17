@@ -2,7 +2,6 @@
 
 namespace ktsu.ProjectDirector;
 
-using System.Collections.ObjectModel;
 using DiffPlex.Model;
 using Hexa.NET.ImGui;
 using ktsu.Extensions;
@@ -80,17 +79,10 @@ internal sealed class PopupPropagateFile
 	{
 		GitRepository repo = Options.Repos[Options.BaseRepo];
 		string from = Path.Combine(repo.LocalPath, Options.PropagatePath);
+		Dictionary<FullyQualifiedGitHubRepoName, string> destinations = FilePropagation.ResolveDestinations(Propagation, Options.Repos, Options.PropagatePath);
+		FilePropagationReport report = FilePropagation.Propagate(from, destinations);
 
-		Dictionary<FullyQualifiedGitHubRepoName, string> destinations = Propagation
-			.Where(kvp => kvp.Value)
-			.ToDictionary(kvp => kvp.Key, kvp => Path.Combine(Options.Repos[kvp.Key].LocalPath, Options.PropagatePath));
-
-		Collection<string> lines = FilePropagation.Propagate(from, destinations).Summarize();
-
-		// Timestamp the summary and leave the per-repository detail indented under it, which is the
-		// shape QueueGitLog already gives the log panel for a git command and its output.
-		Log($"[{DateTimeOffset.Now}] {lines[0]}");
-		foreach (string line in lines.Skip(1))
+		foreach (string line in FilePropagation.DescribeForLog(report, DateTimeOffset.Now))
 		{
 			Log(line);
 		}

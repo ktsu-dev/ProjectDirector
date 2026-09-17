@@ -73,6 +73,50 @@ internal sealed record FilePropagationReport(string Source, bool SourceExists, C
 internal static class FilePropagation
 {
 	/// <summary>
+	/// Works out where the propagated file goes in each repository the user checked.
+	/// </summary>
+	/// <param name="selection">Every repository offered, and whether the user checked it.</param>
+	/// <param name="repos">The repositories, by name, as the options carry them.</param>
+	/// <param name="relativePath">The path being propagated, relative to a repository root.</param>
+	/// <returns>The destination for each checked repository. Unchecked repositories are left out.</returns>
+	/// <remarks>
+	/// The file lands at the same relative path in every repository, which is the whole idea: the
+	/// repositories are similar, and the file being propagated is the one they should share.
+	/// </remarks>
+	internal static Dictionary<FullyQualifiedGitHubRepoName, string> ResolveDestinations(
+		IEnumerable<KeyValuePair<FullyQualifiedGitHubRepoName, bool>> selection,
+		IReadOnlyDictionary<FullyQualifiedGitHubRepoName, GitRepository> repos,
+		string relativePath)
+	{
+		Ensure.NotNull(selection);
+		Ensure.NotNull(repos);
+
+		return selection
+			.Where(kvp => kvp.Value)
+			.ToDictionary(kvp => kvp.Key, kvp => Path.Combine(repos[kvp.Key].LocalPath, relativePath));
+	}
+
+	/// <summary>
+	/// Renders a report as the log panel shows it.
+	/// </summary>
+	/// <param name="report">The run to describe.</param>
+	/// <param name="at">When the run finished, which stamps the summary line.</param>
+	/// <returns>The lines to write to the log, summary first.</returns>
+	/// <remarks>
+	/// Only the summary is timestamped, with the per-repository detail indented under it. That is the
+	/// shape <see cref="ProjectDirector.QueueGitLog"/> already gives a git command and its output, so
+	/// a propagation reads like everything else in the panel.
+	/// </remarks>
+	internal static Collection<string> DescribeForLog(FilePropagationReport report, DateTimeOffset at)
+	{
+		Ensure.NotNull(report);
+
+		Collection<string> lines = report.Summarize();
+		lines[0] = $"[{at}] {lines[0]}";
+		return lines;
+	}
+
+	/// <summary>
 	/// Copies <paramref name="source"/> to every destination, continuing past a failure.
 	/// </summary>
 	/// <param name="source">The file to copy.</param>
@@ -121,10 +165,6 @@ internal static class FilePropagation
 			return new(repo, destination, ex.Message);
 		}
 		catch (UnauthorizedAccessException ex)
-		{
-			return new(repo, destination, ex.Message);
-		}
-		catch (NotSupportedException ex)
 		{
 			return new(repo, destination, ex.Message);
 		}
