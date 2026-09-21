@@ -71,6 +71,41 @@ public sealed class ScanCredentialTests
 		Assert.AreNotEqual("alpha", forOwnerWithout.Login, "The previous owner's login must not carry over.");
 	}
 
+	/// <summary>
+	/// The defect in the shape it actually had: one client, reused across owners.
+	/// </summary>
+	/// <remarks>
+	/// <see cref="AnOwnerWithNoCredentialsAnywhereIsScannedAnonymously"/> pins the rule, but the rule
+	/// only helps if the caller applies it for every owner. Scanning A and then B against a single
+	/// client is what the loop does, so this is what catches a caller that skips the assignment.
+	/// </remarks>
+	[TestMethod]
+	public void ScanningASecondOwnerDoesNotInheritTheFirstOwnersCredentials()
+	{
+		GitHubClient client = new(new ProductHeaderValue("ktsu.ProjectDirector.Test"));
+
+		ProjectDirector.ApplyCredentials(client, Owner("alpha"), Token("alpha-pat"), Login(string.Empty), Token(string.Empty));
+
+		Assert.AreEqual("alpha", client.Credentials.Login, "The first owner should be scanned as itself.");
+
+		ProjectDirector.ApplyCredentials(client, Owner("beta"), Token(string.Empty), Login(string.Empty), Token(string.Empty));
+
+		Assert.AreEqual(AuthenticationType.Anonymous, client.Credentials.AuthenticationType,
+			"The client must not still be authenticated as the previous owner when scanning one with no credentials.");
+		Assert.AreNotEqual("alpha", client.Credentials.Login);
+	}
+
+	[TestMethod]
+	public void ApplyingAGlobalLoginPointsTheClientAtIt()
+	{
+		GitHubClient client = new(new ProductHeaderValue("ktsu.ProjectDirector.Test"));
+
+		ProjectDirector.ApplyCredentials(client, Owner("beta"), Token(string.Empty), Login("global-login"), Token("global-token"));
+
+		Assert.AreEqual("global-login", client.Credentials.Login);
+		Assert.AreEqual("global-token", client.Credentials.Password);
+	}
+
 	[TestMethod]
 	public void AGlobalLoginMissingItsTokenIsNotUsed()
 	{

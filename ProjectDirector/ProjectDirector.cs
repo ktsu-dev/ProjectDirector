@@ -913,14 +913,32 @@ internal sealed class ProjectDirector
 			: Credentials.Anonymous;
 	}
 
+	/// <summary>
+	/// Points the shared client at the credentials one owner is scanned with.
+	/// </summary>
+	/// <param name="client">The client every owner in the scan shares.</param>
+	/// <param name="owner">The owner about to be scanned.</param>
+	/// <param name="pat">That owner's own personal access token, empty if it has none.</param>
+	/// <param name="login">The globally configured login, empty if there is none.</param>
+	/// <param name="token">The globally configured token, empty if there is none.</param>
+	/// <remarks>
+	/// Assigned for every owner, including one with no credentials of its own, so that the previous
+	/// owner's identity cannot carry into this one. That is the whole of the rule, and it is here
+	/// rather than inline in the loop so a test can watch one client across two owners, which is the
+	/// shape the defect actually had.
+	/// </remarks>
+	internal static void ApplyCredentials(GitHubClient client, GitHubOwnerName owner, GitHubToken pat, GitHubLogin login, GitHubToken token)
+	{
+		Ensure.NotNull(client);
+		client.Credentials = ChooseCredentials(owner, pat, login, token);
+	}
+
 	private void ScanRemoteAccountsForRepos()
 	{
 		Dictionary<GitHubOwnerName, GitHubToken> knownOwners = Options.GitHubOwners;
 		foreach ((GitHubOwnerName owner, GitHubToken pat) in knownOwners)
 		{
-			// Assigned for every owner, including one with no credentials of its own, so that the
-			// previous owner's identity cannot carry into this one.
-			GitHubClient.Credentials = ChooseCredentials(owner, pat, Options.GitHubLogin, Options.GitHubToken);
+			ApplyCredentials(GitHubClient, owner, pat, Options.GitHubLogin, Options.GitHubToken);
 
 			SyncGitHubOwnerInfo(owner);
 		}
