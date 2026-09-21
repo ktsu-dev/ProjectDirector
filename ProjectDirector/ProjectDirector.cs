@@ -103,17 +103,13 @@ internal sealed class ProjectDirector
 			QueueSaveOptions();
 		}
 
-		GitHubToken startupToken = Options.GitHubToken;
-		if (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(startupToken))
+		Credentials? startupCredentials = ResolveGitHubCredentials(new(), new(), Options.GitHubLogin, Options.GitHubToken);
+		if (startupCredentials is not null)
 		{
-			GitHubClient.Credentials = new(Options.GitHubLogin, startupToken);
+			GitHubClient.Credentials = startupCredentials;
 		}
 
-		if (migratedTokens > 0)
-		{
-			QueueLog($"Moved {migratedTokens} GitHub token(s) out of the settings file into the OS secret store");
-		}
-
+		QueueLogIfAny(DescribeTokenMigration(migratedTokens));
 		DrainSecretStoreReport();
 
 		RefreshPage();
@@ -186,14 +182,79 @@ internal sealed class ProjectDirector
 	/// Writes the secret store's complaint to the log, if it has one. <see cref="TokenStorage"/>
 	/// records the message rather than logging it, because the log is an instance member here.
 	/// </summary>
-	private void DrainSecretStoreReport()
+	private void DrainSecretStoreReport() => QueueLogIfAny(TokenStorage.DrainUnavailableReport());
+
+	private void QueueLogIfAny(string message)
 	{
-		string report = TokenStorage.DrainUnavailableReport();
-		if (report.Length > 0)
+		if (message.Length > 0)
 		{
-			QueueLog(report);
+			QueueLog(message);
 		}
 	}
+
+	/// <summary>
+	/// Picks the credentials for a request against <paramref name="owner"/>.
+	/// </summary>
+	/// <returns>
+	/// The owner's own token when it has one, otherwise the account-level login and token, or
+	/// <see langword="null"/> when neither is usable — which leaves the client unauthenticated
+	/// rather than authenticating with a blank secret.
+	/// </returns>
+	/// <remarks>
+	/// The owner token shadowing the account token is the rule that makes a private repository in
+	/// another organization reachable, so it is here as a plain method rather than inline in the
+	/// scan loop.
+	/// </remarks>
+	internal static Credentials? ResolveGitHubCredentials(
+		GitHubOwnerName owner,
+		GitHubToken ownerToken,
+		GitHubLogin login,
+		GitHubToken accountToken)
+	{
+		if (!string.IsNullOrEmpty(ownerToken))
+		{
+			return new Credentials(owner, ownerToken);
+		}
+
+		return !string.IsNullOrEmpty(login) && !string.IsNullOrEmpty(accountToken)
+			? new Credentials(login, accountToken)
+			: null;
+	}
+
+	/// <summary>
+	/// Stores the token a user typed for <paramref name="owner"/>.
+	/// </summary>
+	/// <returns>
+	/// The message to log when the secret store refused the token, or empty when it took it. A
+	/// refusal has to reach the user: the popup closes either way, so silence would look like
+	/// success.
+	/// </returns>
+	internal static string ApplyOwnerToken(GitHubOwnerName owner, string typed) =>
+		TokenStorage.WriteOwnerToken(owner, GitHubToken.Create<GitHubToken>(typed))
+			? string.Empty
+			: TokenStorage.DrainUnavailableReport();
+
+	/// <summary>
+	/// The configured owners in a stable display order.
+	/// </summary>
+	/// <remarks>
+	/// The owner registry used to be a dictionary, whose enumeration order is not guaranteed, so the
+	/// owner panels and the token menu could disagree between runs. Ordering them once, here, is what
+	/// keeps both lists the same and predictable.
+	/// </remarks>
+	internal static IEnumerable<GitHubOwnerName> OwnersInDisplayOrder(IEnumerable<GitHubOwnerName> owners)
+	{
+		Ensure.NotNull(owners);
+		return owners.OrderBy(owner => owner.ToString(), StringComparer.Ordinal);
+	}
+
+	/// <summary>
+	/// The line to log after a startup migration, or empty when nothing moved.
+	/// </summary>
+	internal static string DescribeTokenMigration(int migratedTokens) =>
+		migratedTokens > 0
+			? $"Moved {migratedTokens} GitHub token(s) out of the settings file into the OS secret store"
+			: string.Empty;
 
 	private void SaveOptionsIfRequired()
 	{
@@ -483,13 +544,11 @@ internal sealed class ProjectDirector
 		{
 			GitHubOwnerName owner = OwnerPendingTokenPopup;
 			OwnerPendingTokenPopup = null;
-			PopupSetGitHubOwnerToken.Open($"Set Token for {owner}", "Personal Access Token", string.Empty, result =>
-			{
-				if (!TokenStorage.WriteOwnerToken(owner, GitHubToken.Create<GitHubToken>(result)))
-				{
-					DrainSecretStoreReport();
-				}
-			});
+			PopupSetGitHubOwnerToken.Open(
+				$"Set Token for {owner}",
+				"Personal Access Token",
+				string.Empty,
+				result => QueueLogIfAny(ApplyOwnerToken(owner, result)));
 		}
 
 		_ = PopupSetDevDirectory.ShowIfOpen();
@@ -718,7 +777,7 @@ internal sealed class ProjectDirector
 
 			if (Options.GitHubOwners.Count > 0 && ImGui.BeginMenu("Set GitHub Owner Token"))
 			{
-				foreach (GitHubOwnerName owner in Options.GitHubOwners.OrderBy(o => o.ToString(), StringComparer.Ordinal))
+				foreach (GitHubOwnerName owner in OwnersInDisplayOrder(Options.GitHubOwners))
 				{
 					if (ImGui.MenuItem(owner))
 					{
@@ -757,7 +816,7 @@ internal sealed class ProjectDirector
 
 	private void ShowOwners()
 	{
-		foreach (GitHubOwnerName owner in Options.GitHubOwners.OrderBy(o => o.ToString(), StringComparer.Ordinal))
+		foreach (GitHubOwnerName owner in OwnersInDisplayOrder(Options.GitHubOwners))
 		{
 			ShowCollapsiblePanel(owner, () => ShowRepos(owner));
 		}
@@ -946,11 +1005,11 @@ internal sealed class ProjectDirector
 	{
 		foreach (GitHubOwnerName owner in Options.GitHubOwners.ToArray())
 		{
-			GitHubToken pat = TokenStorage.ReadOwnerToken(owner);
-			GitHubToken accountToken = Options.GitHubToken;
-			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(accountToken)))
+			Credentials? credentials = ResolveGitHubCredentials(
+				owner, TokenStorage.ReadOwnerToken(owner), Options.GitHubLogin, Options.GitHubToken);
+			if (credentials is not null)
 			{
-				GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, accountToken);
+				GitHubClient.Credentials = credentials;
 			}
 
 			SyncGitHubOwnerInfo(owner);

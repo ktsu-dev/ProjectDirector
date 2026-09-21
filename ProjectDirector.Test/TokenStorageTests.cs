@@ -11,7 +11,10 @@ using ktsu.RoundTripStringJsonConverter;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+using Octokit;
+
 using CredentialCache = ktsu.CredentialCache.CredentialCache;
+using ICredentialStore = ktsu.CredentialCache.Storage.ICredentialStore;
 
 /// <summary>
 /// Covers where GitHub personal access tokens live. The settings file sits next to window state and
@@ -301,5 +304,106 @@ public sealed class TokenStorageTests
 		TokenStorage.UseCache(unavailable);
 
 		Assert.IsFalse(TokenStorage.WriteOwnerToken(Owner("ktsu-dev"), Token("ghp_owner")));
+	}
+
+	/// <summary>
+	/// An owner with its own token authenticates as that owner, which is what makes a private
+	/// repository in another organization reachable.
+	/// </summary>
+	[TestMethod]
+	public void OwnerTokenShadowsTheAccountToken()
+	{
+		Credentials? credentials = ProjectDirector.ResolveGitHubCredentials(
+			Owner("ktsu-dev"),
+			Token("ghp_owner"),
+			GitHubLogin.Create<GitHubLogin>("someone"),
+			Token("ghp_account"));
+
+		Assert.IsNotNull(credentials);
+		Assert.AreEqual("ktsu-dev", credentials.Login);
+		Assert.AreEqual("ghp_owner", credentials.Password);
+	}
+
+	/// <summary>
+	/// Without an owner token the account-level login and token are used.
+	/// </summary>
+	[TestMethod]
+	public void AccountCredentialsAreUsedWhenTheOwnerHasNoToken()
+	{
+		Credentials? credentials = ProjectDirector.ResolveGitHubCredentials(
+			Owner("ktsu-dev"),
+			new(),
+			GitHubLogin.Create<GitHubLogin>("someone"),
+			Token("ghp_account"));
+
+		Assert.IsNotNull(credentials);
+		Assert.AreEqual("someone", credentials.Login);
+		Assert.AreEqual("ghp_account", credentials.Password);
+	}
+
+	/// <summary>
+	/// With nothing usable the answer is no credentials, rather than credentials carrying a blank
+	/// secret — an anonymous request is a better failure than one that authenticates as nobody.
+	/// </summary>
+	[TestMethod]
+	public void NoCredentialsWhenNothingIsConfigured()
+	{
+		Assert.IsNull(ProjectDirector.ResolveGitHubCredentials(Owner("ktsu-dev"), new(), new(), new()));
+		Assert.IsNull(ProjectDirector.ResolveGitHubCredentials(
+			Owner("ktsu-dev"), new(), GitHubLogin.Create<GitHubLogin>("someone"), new()));
+		Assert.IsNull(ProjectDirector.ResolveGitHubCredentials(
+			Owner("ktsu-dev"), new(), new(), Token("ghp_account")));
+	}
+
+	/// <summary>
+	/// A token typed into the popup reaches the secret store, and nothing is logged.
+	/// </summary>
+	[TestMethod]
+	public void ApplyOwnerTokenStoresTheTokenSilently()
+	{
+		string message = ProjectDirector.ApplyOwnerToken(Owner("ktsu-dev"), "ghp_typed");
+
+		Assert.AreEqual(string.Empty, message);
+		Assert.AreEqual("ghp_typed", TokenStorage.ReadOwnerToken(Owner("ktsu-dev")).ToString());
+	}
+
+	/// <summary>
+	/// When the store refuses the token the user is told. The popup closes either way, so silence
+	/// here would look exactly like success.
+	/// </summary>
+	[TestMethod]
+	public void ApplyOwnerTokenReportsARefusal()
+	{
+		using CredentialCache unavailable = new(new UnavailableCredentialStore());
+		TokenStorage.UseCache(unavailable);
+
+		string message = ProjectDirector.ApplyOwnerToken(Owner("ktsu-dev"), "ghp_typed");
+
+		Assert.Contains("secret store", message, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Migrating nothing says nothing; migrating something says how much.
+	/// </summary>
+	[TestMethod]
+	public void MigrationIsDescribedOnlyWhenSomethingMoved()
+	{
+		Assert.AreEqual(string.Empty, ProjectDirector.DescribeTokenMigration(0));
+		Assert.Contains("2", ProjectDirector.DescribeTokenMigration(2), StringComparison.Ordinal);
+		Assert.Contains("secret store", ProjectDirector.DescribeTokenMigration(2), StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// Owners list in a stable order, so the owner panels and the token menu agree with each other
+	/// and with the previous run. The registry they come from is a set, which does not promise one.
+	/// </summary>
+	[TestMethod]
+	public void OwnersListInAStableOrder()
+	{
+		HashSet<GitHubOwnerName> owners = [Owner("ktsu-io"), Owner("acme"), Owner("ktsu-dev")];
+
+		string ordered = string.Join(",", ProjectDirector.OwnersInDisplayOrder(owners));
+
+		Assert.AreEqual("acme,ktsu-dev,ktsu-io", ordered);
 	}
 }
