@@ -37,11 +37,18 @@ internal sealed class ProjectDirector
 	private ConcurrentQueue<string> LogQueue { get; } = new();
 	private ImGuiPopups.InputString PopupSetDevDirectory { get; } = new();
 	private ImGuiPopups.InputString PopupAddNewGitHubOwner { get; } = new();
+	private ImGuiPopups.InputString PopupSetGitHubOwnerToken { get; } = new();
 	private ImGuiPopups.Prompt PopupConfirmPull { get; } = new();
 	private ImGuiPopups.InputString PopupCommitMessage { get; } = new();
 	private Collection<RelativePath> BrowserContentsBase { get; set; } = [];
 	private Collection<RelativePath> BrowserContentsCompare { get; set; } = [];
 	private PopupPropagateFile PopupPropagateFile { get; } = new();
+
+	/// <summary>
+	/// The owner whose token popup should open on the next tick. Opening a popup from inside
+	/// <c>BeginMenu</c> does not work, so the menu records the owner and the tick opens it.
+	/// </summary>
+	private GitHubOwnerName? OwnerPendingTokenPopup { get; set; }
 
 	// private ChatClient ChatClient { get; init; }
 
@@ -90,10 +97,24 @@ internal sealed class ProjectDirector
 
 		GitHubClient = new(new ProductHeaderValue("ktsu.ProjectDirector"));
 
-		if (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken))
+		int migratedTokens = TokenStorage.MigrateLegacyTokens(Options);
+		if (migratedTokens > 0)
 		{
-			GitHubClient.Credentials = new(Options.GitHubLogin, Options.GitHubToken);
+			QueueSaveOptions();
 		}
+
+		GitHubToken startupToken = Options.GitHubToken;
+		if (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(startupToken))
+		{
+			GitHubClient.Credentials = new(Options.GitHubLogin, startupToken);
+		}
+
+		if (migratedTokens > 0)
+		{
+			QueueLog($"Moved {migratedTokens} GitHub token(s) out of the settings file into the OS secret store");
+		}
+
+		DrainSecretStoreReport();
 
 		RefreshPage();
 	}
@@ -160,6 +181,19 @@ internal sealed class ProjectDirector
 	private void SaveOptionsInternal() => Options.Save();
 
 	private void QueueSaveOptions() => SaveOptionsQueuedTime = DateTime.UtcNow;
+
+	/// <summary>
+	/// Writes the secret store's complaint to the log, if it has one. <see cref="TokenStorage"/>
+	/// records the message rather than logging it, because the log is an instance member here.
+	/// </summary>
+	private void DrainSecretStoreReport()
+	{
+		string report = TokenStorage.DrainUnavailableReport();
+		if (report.Length > 0)
+		{
+			QueueLog(report);
+		}
+	}
 
 	private void SaveOptionsIfRequired()
 	{
@@ -445,8 +479,22 @@ internal sealed class ProjectDirector
 	{
 		DividerContainerCols.Tick(dt);
 
+		if (OwnerPendingTokenPopup is not null)
+		{
+			GitHubOwnerName owner = OwnerPendingTokenPopup;
+			OwnerPendingTokenPopup = null;
+			PopupSetGitHubOwnerToken.Open($"Set Token for {owner}", "Personal Access Token", string.Empty, result =>
+			{
+				if (!TokenStorage.WriteOwnerToken(owner, GitHubToken.Create<GitHubToken>(result)))
+				{
+					DrainSecretStoreReport();
+				}
+			});
+		}
+
 		_ = PopupSetDevDirectory.ShowIfOpen();
 		_ = PopupAddNewGitHubOwner.ShowIfOpen();
+		_ = PopupSetGitHubOwnerToken.ShowIfOpen();
 		_ = PopupConfirmPull.ShowIfOpen();
 		_ = PopupCommitMessage.ShowIfOpen();
 
@@ -662,10 +710,23 @@ internal sealed class ProjectDirector
 					if (!string.IsNullOrEmpty(result))
 					{
 						GitHubOwnerName newName = GitHubOwnerName.Create<GitHubOwnerName>(result);
-						_ = Options.GitHubOwners.TryAdd(newName, GitHubToken.Create<GitHubToken>(string.Empty));
+						_ = Options.GitHubOwners.Add(newName);
 						SyncGitHubOwnerInfo(newName);
 					}
 				});
+			}
+
+			if (Options.GitHubOwners.Count > 0 && ImGui.BeginMenu("Set GitHub Owner Token"))
+			{
+				foreach (GitHubOwnerName owner in Options.GitHubOwners.OrderBy(o => o.ToString(), StringComparer.Ordinal))
+				{
+					if (ImGui.MenuItem(owner))
+					{
+						OwnerPendingTokenPopup = owner;
+					}
+				}
+
+				ImGui.EndMenu();
 			}
 
 			ImGui.Separator();
@@ -696,7 +757,7 @@ internal sealed class ProjectDirector
 
 	private void ShowOwners()
 	{
-		foreach ((GitHubOwnerName owner, GitHubToken pat) in Options.GitHubOwners)
+		foreach (GitHubOwnerName owner in Options.GitHubOwners.OrderBy(o => o.ToString(), StringComparer.Ordinal))
 		{
 			ShowCollapsiblePanel(owner, () => ShowRepos(owner));
 		}
@@ -868,7 +929,7 @@ internal sealed class ProjectDirector
 						Options.Repos[repoFullName] = gitHubRepo;
 						gitHubRepo.OwnerName = ownerName;
 						gitHubRepo.RepoName = repoName;
-						_ = Options.GitHubOwners.TryAdd(gitHubRepo.OwnerName, GitHubToken.Create<GitHubToken>(string.Empty));
+						_ = Options.GitHubOwners.Add(gitHubRepo.OwnerName);
 					}
 				}
 			}
@@ -883,16 +944,19 @@ internal sealed class ProjectDirector
 
 	private void ScanRemoteAccountsForRepos()
 	{
-		Dictionary<GitHubOwnerName, GitHubToken> knownOwners = Options.GitHubOwners;
-		foreach ((GitHubOwnerName owner, GitHubToken pat) in knownOwners)
+		foreach (GitHubOwnerName owner in Options.GitHubOwners.ToArray())
 		{
-			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken)))
+			GitHubToken pat = TokenStorage.ReadOwnerToken(owner);
+			GitHubToken accountToken = Options.GitHubToken;
+			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(accountToken)))
 			{
-				GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, Options.GitHubToken);
+				GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, accountToken);
 			}
 
 			SyncGitHubOwnerInfo(owner);
 		}
+
+		DrainSecretStoreReport();
 
 		UpdateClonedStatus();
 	}
