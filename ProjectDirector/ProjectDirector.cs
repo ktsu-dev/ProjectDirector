@@ -881,15 +881,46 @@ internal sealed class ProjectDirector
 		UpdateClonedStatus();
 	}
 
+	/// <summary>
+	/// Chooses the credentials one owner is scanned with.
+	/// </summary>
+	/// <param name="owner">The owner about to be scanned.</param>
+	/// <param name="pat">That owner's own personal access token, empty if it has none.</param>
+	/// <param name="login">The globally configured login, empty if there is none.</param>
+	/// <param name="token">The globally configured token, empty if there is none.</param>
+	/// <returns>
+	/// The owner's own token where it has one, otherwise the global login where there is one,
+	/// otherwise <see cref="Credentials.Anonymous"/>.
+	/// </returns>
+	/// <remarks>
+	/// The answer has to be total. <see cref="Octokit.GitHubClient.Credentials"/> is one mutable
+	/// property on a client shared by every owner in the scan, so an owner that leaves it alone is
+	/// not scanned anonymously -- it is scanned as whoever was set last. A PAT configured for one
+	/// owner therefore carried into the next owner that had none, which misses that owner's own
+	/// private repositories and answers anything needing its auth with an
+	/// <see cref="ApiException"/> that the caller swallows, leaving the repositories missing with
+	/// no indication why.
+	/// </remarks>
+	internal static Credentials ChooseCredentials(GitHubOwnerName owner, GitHubToken pat, GitHubLogin login, GitHubToken token)
+	{
+		if (!string.IsNullOrEmpty(pat))
+		{
+			return new Credentials(owner, pat);
+		}
+
+		return !string.IsNullOrEmpty(login) && !string.IsNullOrEmpty(token)
+			? new Credentials(login, token)
+			: Credentials.Anonymous;
+	}
+
 	private void ScanRemoteAccountsForRepos()
 	{
 		Dictionary<GitHubOwnerName, GitHubToken> knownOwners = Options.GitHubOwners;
 		foreach ((GitHubOwnerName owner, GitHubToken pat) in knownOwners)
 		{
-			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken)))
-			{
-				GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, Options.GitHubToken);
-			}
+			// Assigned for every owner, including one with no credentials of its own, so that the
+			// previous owner's identity cannot carry into this one.
+			GitHubClient.Credentials = ChooseCredentials(owner, pat, Options.GitHubLogin, Options.GitHubToken);
 
 			SyncGitHubOwnerInfo(owner);
 		}
