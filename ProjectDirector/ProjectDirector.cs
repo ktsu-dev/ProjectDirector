@@ -62,6 +62,19 @@ internal sealed class ProjectDirector
 	public ProjectDirector()
 	{
 		Options = ProjectDirectorOptions.LoadOrCreate();
+
+		// Deserialization is the only way a repository this application cannot act on enters the
+		// options, so rejecting one here is what keeps every later `is GitHubRepository` test an
+		// invariant rather than a live branch that throws on the render thread.
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejectedRepos = RejectUnsupportedRepos(Options.Repos, Options.ClonedRepos);
+		Options.BaseRepo = ClearSelectionIfRejected(Options.BaseRepo, rejectedRepos);
+		Options.CompareRepo = ClearSelectionIfRejected(Options.CompareRepo, rejectedRepos);
+
+		foreach (FullyQualifiedGitHubRepoName rejected in rejectedRepos)
+		{
+			QueueLog($"Ignoring saved repository '{rejected}': only GitHub repositories are supported at this time.");
+		}
+
 		Options.Save();
 		// ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
 		DividerDiff = new("DiffDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
@@ -96,6 +109,78 @@ internal sealed class ProjectDirector
 		}
 
 		RefreshPage();
+	}
+
+	/// <summary>
+	/// Drops any saved repository this application cannot act on, along with any selection left
+	/// pointing at one.
+	/// </summary>
+	/// <param name="repos">The freshly loaded repositories, modified in place.</param>
+	/// <param name="clonedRepos">The freshly loaded clone records, modified in place.</param>
+	/// <returns>The names of the repositories that were dropped, in the order they were found.</returns>
+	/// <remarks>
+	/// <see cref="GitRepository"/> registers <see cref="AzureDevOpsRepository"/> as a
+	/// <see cref="System.Text.Json.Serialization.JsonDerivedTypeAttribute"/>, so a saved options
+	/// file carrying one deserializes without complaint. Nothing acts on it: every site that
+	/// pattern-matches a repository handles <see cref="GitHubRepository"/> and throws otherwise,
+	/// and <see cref="GitRepository.Create"/> cannot produce anything else in the first place.
+	/// <c>UpdateClonedStatus</c> then runs from the constructor's <c>RefreshPage</c>, so the throw
+	/// landed on the very next launch -- before the user could open the UI and delete the entry
+	/// that was causing it, which made it unrecoverable without hand-editing the file.
+	/// Rejecting the entry at the one boundary it can arrive through is what makes that
+	/// unreachable, rather than guarding six call sites separately. The registration is left in
+	/// place so an existing file still parses; it is the live object that is refused.
+	/// The collections are taken rather than the whole <see cref="ProjectDirectorOptions"/> so this
+	/// rule can be driven without constructing one.
+	/// </remarks>
+	internal static IReadOnlyList<FullyQualifiedGitHubRepoName> RejectUnsupportedRepos(
+		IDictionary<FullyQualifiedGitHubRepoName, GitRepository> repos,
+		IDictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> clonedRepos)
+	{
+		Ensure.NotNull(repos);
+		Ensure.NotNull(clonedRepos);
+
+		List<FullyQualifiedGitHubRepoName> rejected = [.. repos
+			.Where(kvp => kvp.Value is not GitHubRepository)
+			.Select(kvp => kvp.Key)];
+
+		foreach (FullyQualifiedGitHubRepoName name in rejected)
+		{
+			_ = repos.Remove(name);
+		}
+
+		// A clone recorded against a rejected repository would otherwise keep naming it.
+		foreach (FullyQualifiedLocalRepoPath path in clonedRepos
+			.Where(kvp => rejected.Contains(kvp.Value))
+			.Select(kvp => kvp.Key)
+			.ToList())
+		{
+			_ = clonedRepos.Remove(path);
+		}
+
+		return rejected;
+	}
+
+	/// <summary>
+	/// Clears a selected repository name that names one of the <paramref name="rejected"/>
+	/// repositories.
+	/// </summary>
+	/// <param name="selection">The saved selection.</param>
+	/// <param name="rejected">The repositories that were dropped.</param>
+	/// <returns>The selection, or an empty name where it named a dropped repository.</returns>
+	/// <remarks>
+	/// Once something is selected the panels reach for it through
+	/// <c>Options.Repos[Options.BaseRepo]</c>, so a selection outliving its repository turns one
+	/// crash into another. An empty name is the state a fresh install starts in, which the
+	/// surrounding <c>TryGetValue</c> checks already handle.
+	/// </remarks>
+	internal static FullyQualifiedGitHubRepoName ClearSelectionIfRejected(
+		FullyQualifiedGitHubRepoName selection,
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejected)
+	{
+		Ensure.NotNull(rejected);
+
+		return rejected.Contains(selection) ? new() : selection;
 	}
 
 	private void QueueLog(string logMessage)
