@@ -63,17 +63,7 @@ internal sealed class ProjectDirector
 	{
 		Options = ProjectDirectorOptions.LoadOrCreate();
 
-		// Deserialization is the only way a repository this application cannot act on enters the
-		// options, so rejecting one here is what keeps every later `is GitHubRepository` test an
-		// invariant rather than a live branch that throws on the render thread.
-		IReadOnlyList<FullyQualifiedGitHubRepoName> rejectedRepos = RejectUnsupportedRepos(Options.Repos, Options.ClonedRepos);
-		Options.BaseRepo = ClearSelectionIfRejected(Options.BaseRepo, rejectedRepos);
-		Options.CompareRepo = ClearSelectionIfRejected(Options.CompareRepo, rejectedRepos);
-
-		foreach (FullyQualifiedGitHubRepoName rejected in rejectedRepos)
-		{
-			QueueLog($"Ignoring saved repository '{rejected}': only GitHub repositories are supported at this time.");
-		}
+		_ = MakeLoadedOptionsSafe(Options, QueueLog);
 
 		Options.Save();
 		// ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
@@ -181,6 +171,34 @@ internal sealed class ProjectDirector
 		Ensure.NotNull(rejected);
 
 		return rejected.Contains(selection) ? new() : selection;
+	}
+
+	/// <summary>
+	/// Rejects every saved repository this application cannot act on, clears anything left pointing
+	/// at one, and reports each rejection.
+	/// </summary>
+	/// <param name="options">The freshly loaded options, modified in place.</param>
+	/// <param name="log">Where to report each rejected repository.</param>
+	/// <returns>The names of the repositories that were dropped.</returns>
+	/// <remarks>
+	/// The whole of what the constructor does after loading, in one place, so it can be driven
+	/// without an ImGui context.
+	/// </remarks>
+	internal static IReadOnlyList<FullyQualifiedGitHubRepoName> MakeLoadedOptionsSafe(ProjectDirectorOptions options, Action<string> log)
+	{
+		Ensure.NotNull(options);
+		Ensure.NotNull(log);
+
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejected = RejectUnsupportedRepos(options.Repos, options.ClonedRepos);
+		options.BaseRepo = ClearSelectionIfRejected(options.BaseRepo, rejected);
+		options.CompareRepo = ClearSelectionIfRejected(options.CompareRepo, rejected);
+
+		foreach (FullyQualifiedGitHubRepoName name in rejected)
+		{
+			log($"Ignoring saved repository '{name}': only GitHub repositories are supported at this time.");
+		}
+
+		return rejected;
 	}
 
 	private void QueueLog(string logMessage)

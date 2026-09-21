@@ -2,6 +2,7 @@
 
 namespace ktsu.ProjectDirector.Test;
 
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -19,9 +20,9 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 /// constructor's <c>RefreshPage</c>, so that throw landed on the next launch, before the user could
 /// open the UI to delete the entry causing it -- unrecoverable without hand-editing the file.
 ///
-/// <see cref="ProjectDirector.RejectUnsupportedRepos"/> exists so the one boundary such an entry can
-/// arrive through can be driven without a live ImGui context, the way <see cref="PullDecisionTests"/>
-/// drives the pull rule. What it guarantees is the invariant those six throw sites rest on: after it
+/// <c>RejectUnsupportedRepos</c> and <c>MakeLoadedOptionsSafe</c> exist so the one boundary such an
+/// entry can arrive through can be driven without a live ImGui context, the way
+/// <see cref="PullDecisionTests"/> drives the pull rule. What it guarantees is the invariant those six throw sites rest on: after it
 /// runs, every repository left in the options is a <see cref="GitHubRepository"/>.
 /// </remarks>
 [TestClass]
@@ -136,6 +137,67 @@ public sealed class UnsupportedRepoTests
 		Assert.AreEqual(2, rejected.Count);
 		Assert.AreEqual(0, repos.Count);
 		Assert.AreEqual(0, clonedRepos.Count);
+	}
+
+	/// <summary>
+	/// The whole of what the constructor does after loading, against real options: the crashing
+	/// entry goes, the selection pointing at it goes with it, the supported repository stays, and
+	/// the user is told why.
+	/// </summary>
+	[TestMethod]
+	public void LoadedOptionsCarryingAnUnsupportedRepoAreMadeSafe()
+	{
+		using ProjectDirectorOptions options = new()
+		{
+			BaseRepo = RepoName("contoso.internal"),
+			CompareRepo = RepoName("ktsu-dev.ProjectDirector"),
+		};
+		options.Repos[RepoName("contoso.internal")] = new AzureDevOpsRepository();
+		options.Repos[RepoName("ktsu-dev.ProjectDirector")] = new GitHubRepository();
+		options.ClonedRepos[LocalPath("/dev/internal")] = RepoName("contoso.internal");
+
+		List<string> logged = [];
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejected = ProjectDirector.MakeLoadedOptionsSafe(options, logged.Add);
+
+		CollectionAssert.AreEqual(new[] { RepoName("contoso.internal") }, rejected.ToArray());
+		CollectionAssert.AreEqual(new[] { RepoName("ktsu-dev.ProjectDirector") }, options.Repos.Keys.ToArray());
+		Assert.AreEqual(0, options.ClonedRepos.Count);
+
+		Assert.AreEqual(new FullyQualifiedGitHubRepoName(), options.BaseRepo, "The base selection named the rejected repository.");
+		Assert.AreEqual(RepoName("ktsu-dev.ProjectDirector"), options.CompareRepo, "The compare selection named a surviving one and must be left alone.");
+
+		Assert.AreEqual(1, logged.Count, "Each rejection should be reported once.");
+		StringAssert.Contains(logged[0], "contoso.internal", StringComparison.Ordinal);
+	}
+
+	[TestMethod]
+	public void LoadedOptionsWithNothingUnsupportedAreLeftAlone()
+	{
+		using ProjectDirectorOptions options = new()
+		{
+			BaseRepo = RepoName("ktsu-dev.ProjectDirector"),
+		};
+		options.Repos[RepoName("ktsu-dev.ProjectDirector")] = new GitHubRepository();
+
+		List<string> logged = [];
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejected = ProjectDirector.MakeLoadedOptionsSafe(options, logged.Add);
+
+		Assert.AreEqual(0, rejected.Count);
+		Assert.AreEqual(1, options.Repos.Count);
+		Assert.AreEqual(RepoName("ktsu-dev.ProjectDirector"), options.BaseRepo);
+		Assert.AreEqual(0, logged.Count, "Nothing to reject means nothing to report.");
+	}
+
+	/// <summary>
+	/// Fresh options have to be constructible on every platform this repository tests on, which is
+	/// what a hardcoded <c>C:\dev</c> default prevented.
+	/// </summary>
+	[TestMethod]
+	public void FreshOptionsCanBeConstructed()
+	{
+		using ProjectDirectorOptions options = new();
+
+		Assert.IsFalse(string.IsNullOrEmpty(options.DevDirectory), "A fresh install needs a usable dev directory default.");
 	}
 
 	[TestMethod]
