@@ -823,11 +823,75 @@ internal sealed class ProjectDirector
 	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(Repository repo) => FullyQualifiedGitHubRepoName.Create<FullyQualifiedGitHubRepoName>(repo.FullName.Replace('/', '.'));
 	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(GitHubOwnerName ownerName, GitHubRepoName repoName) => FullyQualifiedGitHubRepoName.Create<FullyQualifiedGitHubRepoName>($"{ownerName}.{repoName}");
 
+	/// <summary>
+	/// Walks <paramref name="root"/> for <c>.git</c> directories, skipping any directory that cannot
+	/// be read rather than abandoning the rest of the tree.
+	/// </summary>
+	/// <param name="root">The directory to walk.</param>
+	/// <param name="listDirectories">
+	/// Lists the immediate subdirectories of one directory. Defaults to <see cref="Directory.GetDirectories(string)"/>;
+	/// the tests substitute a lister that denies a chosen directory, which is the one thing a test cannot
+	/// arrange through the file system itself when it runs as a user that bypasses permission checks.
+	/// </param>
+	/// <remarks>
+	/// The recursive form of <see cref="Directory.EnumerateDirectories(string, string, SearchOption)"/>
+	/// leaves <see cref="EnumerationOptions.IgnoreInaccessible"/> off, and it is lazy, so one
+	/// permission-denied folder anywhere under the dev directory throws part way through the walk and
+	/// takes every repository that would have been found after it along with it. A dev directory
+	/// realistically holds package caches, build output and IDE metadata, so such a folder is ordinary
+	/// rather than exotic. Listing a level at a time keeps a refusal local to the directory that
+	/// raised it.
+	/// Descending stops at a <c>.git</c> directory, whose contents are git's own storage and hold no
+	/// further working trees.
+	/// </remarks>
+	internal static IEnumerable<string> EnumerateGitDirectories(string root, Func<string, string[]>? listDirectories = null)
+	{
+		listDirectories ??= Directory.GetDirectories;
+
+		Stack<string> pending = new();
+		pending.Push(root);
+
+		while (pending.Count > 0)
+		{
+			string current = pending.Pop();
+			string[] subdirectories;
+
+			try
+			{
+				subdirectories = listDirectories(current);
+			}
+			catch (UnauthorizedAccessException)
+			{
+				// The process cannot read this directory; the rest of the tree is still worth walking.
+				continue;
+			}
+			catch (IOException)
+			{
+				// Covers a directory removed mid-walk, a dead junction, and an unreadable volume.
+				continue;
+			}
+
+			foreach (string subdirectory in subdirectories)
+			{
+				// Matched without regard to case because that is what the previous pattern match did
+				// on Windows, which is where this application primarily runs.
+				if (string.Equals(Path.GetFileName(subdirectory), ".git", StringComparison.OrdinalIgnoreCase))
+				{
+					yield return subdirectory;
+				}
+				else
+				{
+					pending.Push(subdirectory);
+				}
+			}
+		}
+	}
+
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
 	private void ScanDevDirectoryForOwnersAndRepos()
 	{
 		// scan the dev directory for git repos and when we find one we add the owner to the list of owners and the repo to the list of repos
-		IEnumerable<string> gitDirs = Directory.EnumerateDirectories(Options.DevDirectory, ".git", SearchOption.AllDirectories);
+		IEnumerable<string> gitDirs = EnumerateGitDirectories(Options.DevDirectory);
 		foreach (string gitDir in gitDirs)
 		{
 			// The working tree is the parent of the .git directory, so there is nothing to ask git
