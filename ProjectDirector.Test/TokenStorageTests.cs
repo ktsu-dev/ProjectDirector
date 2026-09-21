@@ -406,4 +406,43 @@ public sealed class TokenStorageTests
 
 		Assert.AreEqual("acme,ktsu-dev,ktsu-io", ordered);
 	}
+
+	/// <summary>
+	/// A user upgrading from a version that kept the token in the settings file is authenticated on
+	/// that same launch, not the next one. The token only exists in the secret store once migration
+	/// has put it there, so resolving credentials before migrating would start the session
+	/// unauthenticated — this pins the order.
+	/// </summary>
+	[TestMethod]
+	public void StartupMigratesBeforeResolvingCredentials()
+	{
+		using ProjectDirectorOptions options = new()
+		{
+			GitHubLogin = GitHubLogin.Create<GitHubLogin>("someone"),
+			LegacyGitHubToken = Token("ghp_from_settings_file"),
+		};
+
+		ProjectDirector.TokenStartup startup = ProjectDirector.PrepareTokens(options);
+
+		Assert.AreEqual(1, startup.Migrated);
+		Assert.IsNotNull(startup.Credentials);
+		Assert.AreEqual("someone", startup.Credentials.Login);
+		Assert.AreEqual("ghp_from_settings_file", startup.Credentials.Password);
+		Assert.Contains("secret store", startup.Log, StringComparison.Ordinal);
+	}
+
+	/// <summary>
+	/// A clean start has nothing to migrate, nothing to say, and no credentials to offer.
+	/// </summary>
+	[TestMethod]
+	public void StartupWithNoTokensIsSilentAndUnauthenticated()
+	{
+		using ProjectDirectorOptions options = new();
+
+		ProjectDirector.TokenStartup startup = ProjectDirector.PrepareTokens(options);
+
+		Assert.AreEqual(0, startup.Migrated);
+		Assert.IsNull(startup.Credentials);
+		Assert.AreEqual(string.Empty, startup.Log);
+	}
 }

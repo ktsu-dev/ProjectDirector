@@ -97,19 +97,18 @@ internal sealed class ProjectDirector
 
 		GitHubClient = new(new ProductHeaderValue("ktsu.ProjectDirector"));
 
-		int migratedTokens = TokenStorage.MigrateLegacyTokens(Options);
-		if (migratedTokens > 0)
+		TokenStartup startup = PrepareTokens(Options);
+		if (startup.Migrated > 0)
 		{
 			QueueSaveOptions();
 		}
 
-		Credentials? startupCredentials = ResolveGitHubCredentials(new(), new(), Options.GitHubLogin, Options.GitHubToken);
-		if (startupCredentials is not null)
+		if (startup.Credentials is not null)
 		{
-			GitHubClient.Credentials = startupCredentials;
+			GitHubClient.Credentials = startup.Credentials;
 		}
 
-		QueueLogIfAny(DescribeTokenMigration(migratedTokens));
+		QueueLogIfAny(startup.Log);
 		DrainSecretStoreReport();
 
 		RefreshPage();
@@ -233,6 +232,30 @@ internal sealed class ProjectDirector
 		TokenStorage.WriteOwnerToken(owner, GitHubToken.Create<GitHubToken>(typed))
 			? string.Empty
 			: TokenStorage.DrainUnavailableReport();
+
+	/// <summary>
+	/// What the startup token pass decided: how many tokens moved out of the settings file, the
+	/// credentials to start with, and the line to log.
+	/// </summary>
+	internal sealed record TokenStartup(int Migrated, Credentials? Credentials, string Log);
+
+	/// <summary>
+	/// Migrates any tokens left in the settings file, then works out the credentials to start with.
+	/// </summary>
+	/// <remarks>
+	/// The order is the point. Migration has to run before the account token is read, because for a
+	/// user upgrading from a version that kept the token in the settings file, the token only exists
+	/// in the secret store once migration has put it there. Resolving first would start the session
+	/// unauthenticated and only pick the credentials up on the next launch.
+	/// </remarks>
+	internal static TokenStartup PrepareTokens(ProjectDirectorOptions options)
+	{
+		Ensure.NotNull(options);
+
+		int migrated = TokenStorage.MigrateLegacyTokens(options);
+		Credentials? credentials = ResolveGitHubCredentials(new(), new(), options.GitHubLogin, options.GitHubToken);
+		return new(migrated, credentials, DescribeTokenMigration(migrated));
+	}
 
 	/// <summary>
 	/// The configured owners in a stable display order.
