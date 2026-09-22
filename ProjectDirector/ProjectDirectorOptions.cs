@@ -18,7 +18,22 @@ public sealed record class FullyQualifiedLocalRepoPath : SemanticString<FullyQua
 
 public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 {
-	public AbsoluteDirectoryPath DevDirectory { get; set; } = AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(@"C:\dev");
+	public AbsoluteDirectoryPath DevDirectory { get; set; } = DefaultDevDirectory();
+
+	/// <summary>
+	/// The dev directory a fresh install starts with.
+	/// </summary>
+	/// <remarks>
+	/// <c>C:\dev</c> is not an absolute path anywhere but Windows, so
+	/// <see cref="AbsoluteDirectoryPath"/> rejected it and this type could not be constructed at all
+	/// off Windows -- not by the application, and not by a test. Windows keeps the path it has
+	/// always had; everywhere else falls back to <c>~/dev</c>. Only a fresh install reads this, so a
+	/// saved options file keeps whatever the user chose.
+	/// </remarks>
+	private static AbsoluteDirectoryPath DefaultDevDirectory() =>
+		AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(OperatingSystem.IsWindows()
+			? @"C:\dev"
+			: Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "dev"));
 	public ImGuiAppWindowState WindowState { get; set; } = new();
 
 	public GitHubLogin GitHubLogin { get; set; } = new();
