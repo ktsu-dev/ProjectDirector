@@ -131,8 +131,8 @@ public sealed class SimilarReposTests
 
 			// Only the tracked files both repositories carry are diffed.
 			Assert.AreEqual(1, diffs[Name("B")].Count);
-			Assert.IsTrue(diffs[Name("B")].ContainsKey(RelativeFilePath.Create<RelativeFilePath>("shared.txt")));
-			Assert.IsNotEmpty(diffs[Name("B")][RelativeFilePath.Create<RelativeFilePath>("shared.txt")].DiffBlocks, "shared.txt differs between the two.");
+			Assert.IsTrue(diffs[Name("B")].TryGetValue(RelativeFilePath.Create<RelativeFilePath>("shared.txt"), out DiffResult? shared));
+			Assert.IsNotEmpty(shared.DiffBlocks, "shared.txt differs between the two.");
 
 			// A sibling sharing nothing still gets an entry, because the similar-repos table counts
 			// its matches and would otherwise have no row to report zero on.
@@ -171,7 +171,7 @@ public sealed class SimilarReposTests
 	public void ARepositoryThatIsNotCheckedOutComparesToNothingRatherThanThrowing()
 	{
 		string b = CreateRepository([("shared.txt", "one\n")]);
-		string missing = Path.Combine(Path.GetTempPath(), $"ktsu_pd_absent_{Guid.NewGuid():N}");
+		string missing = Path.Join(Path.GetTempPath(), $"ktsu_pd_absent_{Guid.NewGuid():N}");
 
 		try
 		{
@@ -326,7 +326,7 @@ public sealed class SimilarReposTests
 
 			Assert.IsNotEmpty(ProjectDirector.FindDiff(repoA, Name("B"), shared)!.DiffBlocks);
 
-			await File.WriteAllTextAsync(Path.Combine(b, "shared.txt"), "one\n").ConfigureAwait(false);
+			await File.WriteAllTextAsync(Path.Join(b, "shared.txt"), "one\n").ConfigureAwait(false);
 			ProjectDirector.RefreshFileDiff(repoA, repoB, shared);
 
 			Assert.IsEmpty(ProjectDirector.FindDiff(repoA, Name("B"), shared)!.DiffBlocks, "The re-diff should see the file the apply button just wrote.");
@@ -366,7 +366,7 @@ public sealed class SimilarReposTests
 
 	private static string CreateRepository(IEnumerable<(string RelativePath, string Contents)> files)
 	{
-		string root = Path.Combine(Path.GetTempPath(), $"ktsu_pd_similar_{Guid.NewGuid():N}");
+		string root = Path.Join(Path.GetTempPath(), $"ktsu_pd_similar_{Guid.NewGuid():N}");
 		_ = Directory.CreateDirectory(root);
 
 		Assert.IsTrue(GitCli.Run("init", root).Succeeded, "git init failed.");
@@ -378,7 +378,7 @@ public sealed class SimilarReposTests
 
 		foreach ((string relativePath, string contents) in files)
 		{
-			File.WriteAllText(Path.Combine(root, relativePath), contents);
+			File.WriteAllText(Path.Join(root, relativePath), contents);
 		}
 
 		Assert.IsTrue(GitCli.RunIn(root, "add", "--all").Succeeded, "git add failed.");
@@ -408,6 +408,8 @@ public sealed class SimilarReposTests
 		}
 		catch (UnauthorizedAccessException)
 		{
+			// Same best-effort rationale as above: a temp directory that will not delete is not
+			// worth failing a test over.
 		}
 	}
 }
