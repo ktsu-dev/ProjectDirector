@@ -1155,14 +1155,11 @@ internal sealed class ProjectDirector
 		Ensure.NotNull(repos);
 
 		Collection<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others = [];
-		foreach (GitRepository otherRepo in repos)
+		foreach (GitRepository otherRepo in repos.Where(otherRepo => repo != otherRepo))
 		{
-			if (repo != otherRepo)
-			{
-				others.Add(otherRepo is GitHubRepository gitHubRepo
-					? new(GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName), otherRepo)
-					: throw new InvalidOperationException("Only GitHub Repos are supported at this time"));
-			}
+			others.Add(otherRepo is GitHubRepository gitHubRepo
+				? new(GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName), otherRepo)
+				: throw new InvalidOperationException("Only GitHub Repos are supported at this time"));
 		}
 
 		return others;
