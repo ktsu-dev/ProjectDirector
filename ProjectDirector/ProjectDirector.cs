@@ -62,6 +62,9 @@ internal sealed class ProjectDirector
 	public ProjectDirector()
 	{
 		Options = ProjectDirectorOptions.LoadOrCreate();
+
+		_ = MakeLoadedOptionsSafe(Options, QueueLog);
+
 		Options.Save();
 		// ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
 		DividerDiff = new("DiffDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
@@ -96,6 +99,106 @@ internal sealed class ProjectDirector
 		}
 
 		RefreshPage();
+	}
+
+	/// <summary>
+	/// Drops any saved repository this application cannot act on, along with any selection left
+	/// pointing at one.
+	/// </summary>
+	/// <param name="repos">The freshly loaded repositories, modified in place.</param>
+	/// <param name="clonedRepos">The freshly loaded clone records, modified in place.</param>
+	/// <returns>The names of the repositories that were dropped, in the order they were found.</returns>
+	/// <remarks>
+	/// <see cref="GitRepository"/> registers <see cref="AzureDevOpsRepository"/> as a
+	/// <see cref="System.Text.Json.Serialization.JsonDerivedTypeAttribute"/>, so a saved options
+	/// file carrying one deserializes without complaint. Nothing acts on it: every site that
+	/// pattern-matches a repository handles <see cref="GitHubRepository"/> and throws otherwise,
+	/// and <see cref="GitRepository.Create"/> cannot produce anything else in the first place.
+	/// <c>UpdateClonedStatus</c> then runs from the constructor's <c>RefreshPage</c>, so the throw
+	/// landed on the very next launch -- before the user could open the UI and delete the entry
+	/// that was causing it, which made it unrecoverable without hand-editing the file.
+	/// Rejecting the entry at the one boundary it can arrive through is what makes that
+	/// unreachable, rather than guarding six call sites separately. The registration is left in
+	/// place so an existing file still parses; it is the live object that is refused.
+	/// The collections are taken rather than the whole <see cref="ProjectDirectorOptions"/> so this
+	/// rule can be driven without constructing one.
+	/// </remarks>
+	internal static IReadOnlyList<FullyQualifiedGitHubRepoName> RejectUnsupportedRepos(
+		IDictionary<FullyQualifiedGitHubRepoName, GitRepository> repos,
+		IDictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> clonedRepos)
+	{
+		Ensure.NotNull(repos);
+		Ensure.NotNull(clonedRepos);
+
+		List<FullyQualifiedGitHubRepoName> rejected = [.. repos
+			.Where(kvp => kvp.Value is not GitHubRepository)
+			.Select(kvp => kvp.Key)];
+
+		foreach (FullyQualifiedGitHubRepoName name in rejected)
+		{
+			_ = repos.Remove(name);
+		}
+
+		// A clone recorded against a rejected repository would otherwise keep naming it.
+		foreach (FullyQualifiedLocalRepoPath path in clonedRepos
+			.Where(kvp => rejected.Contains(kvp.Value))
+			.Select(kvp => kvp.Key)
+			.ToList())
+		{
+			_ = clonedRepos.Remove(path);
+		}
+
+		return rejected;
+	}
+
+	/// <summary>
+	/// Clears a selected repository name that names one of the <paramref name="rejected"/>
+	/// repositories.
+	/// </summary>
+	/// <param name="selection">The saved selection.</param>
+	/// <param name="rejected">The repositories that were dropped.</param>
+	/// <returns>The selection, or an empty name where it named a dropped repository.</returns>
+	/// <remarks>
+	/// Once something is selected the panels reach for it through
+	/// <c>Options.Repos[Options.BaseRepo]</c>, so a selection outliving its repository turns one
+	/// crash into another. An empty name is the state a fresh install starts in, which the
+	/// surrounding <c>TryGetValue</c> checks already handle.
+	/// </remarks>
+	internal static FullyQualifiedGitHubRepoName ClearSelectionIfRejected(
+		FullyQualifiedGitHubRepoName selection,
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejected)
+	{
+		Ensure.NotNull(rejected);
+
+		return rejected.Contains(selection) ? new() : selection;
+	}
+
+	/// <summary>
+	/// Rejects every saved repository this application cannot act on, clears anything left pointing
+	/// at one, and reports each rejection.
+	/// </summary>
+	/// <param name="options">The freshly loaded options, modified in place.</param>
+	/// <param name="log">Where to report each rejected repository.</param>
+	/// <returns>The names of the repositories that were dropped.</returns>
+	/// <remarks>
+	/// The whole of what the constructor does after loading, in one place, so it can be driven
+	/// without an ImGui context.
+	/// </remarks>
+	internal static IReadOnlyList<FullyQualifiedGitHubRepoName> MakeLoadedOptionsSafe(ProjectDirectorOptions options, Action<string> log)
+	{
+		Ensure.NotNull(options);
+		Ensure.NotNull(log);
+
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejected = RejectUnsupportedRepos(options.Repos, options.ClonedRepos);
+		options.BaseRepo = ClearSelectionIfRejected(options.BaseRepo, rejected);
+		options.CompareRepo = ClearSelectionIfRejected(options.CompareRepo, rejected);
+
+		foreach (FullyQualifiedGitHubRepoName name in rejected)
+		{
+			log($"Ignoring saved repository '{name}': only GitHub repositories are supported at this time.");
+		}
+
+		return rejected;
 	}
 
 	private void QueueLog(string logMessage)
@@ -945,15 +1048,64 @@ internal sealed class ProjectDirector
 		UpdateClonedStatus();
 	}
 
+	/// <summary>
+	/// Chooses the credentials one owner is scanned with.
+	/// </summary>
+	/// <param name="owner">The owner about to be scanned.</param>
+	/// <param name="pat">That owner's own personal access token, empty if it has none.</param>
+	/// <param name="login">The globally configured login, empty if there is none.</param>
+	/// <param name="token">The globally configured token, empty if there is none.</param>
+	/// <returns>
+	/// The owner's own token where it has one, otherwise the global login where there is one,
+	/// otherwise <see cref="Credentials.Anonymous"/>.
+	/// </returns>
+	/// <remarks>
+	/// The answer has to be total. <see cref="Octokit.GitHubClient.Credentials"/> is one mutable
+	/// property on a client shared by every owner in the scan, so an owner that leaves it alone is
+	/// not scanned anonymously -- it is scanned as whoever was set last. A PAT configured for one
+	/// owner therefore carried into the next owner that had none, which misses that owner's own
+	/// private repositories and answers anything needing its auth with an
+	/// <see cref="ApiException"/> that the caller swallows, leaving the repositories missing with
+	/// no indication why.
+	/// </remarks>
+	internal static Credentials ChooseCredentials(GitHubOwnerName owner, GitHubToken pat, GitHubLogin login, GitHubToken token)
+	{
+		if (!string.IsNullOrEmpty(pat))
+		{
+			return new Credentials(owner, pat);
+		}
+
+		return !string.IsNullOrEmpty(login) && !string.IsNullOrEmpty(token)
+			? new Credentials(login, token)
+			: Credentials.Anonymous;
+	}
+
+	/// <summary>
+	/// Points the shared client at the credentials one owner is scanned with.
+	/// </summary>
+	/// <param name="client">The client every owner in the scan shares.</param>
+	/// <param name="owner">The owner about to be scanned.</param>
+	/// <param name="pat">That owner's own personal access token, empty if it has none.</param>
+	/// <param name="login">The globally configured login, empty if there is none.</param>
+	/// <param name="token">The globally configured token, empty if there is none.</param>
+	/// <remarks>
+	/// Assigned for every owner, including one with no credentials of its own, so that the previous
+	/// owner's identity cannot carry into this one. That is the whole of the rule, and it is here
+	/// rather than inline in the loop so a test can watch one client across two owners, which is the
+	/// shape the defect actually had.
+	/// </remarks>
+	internal static void ApplyCredentials(GitHubClient client, GitHubOwnerName owner, GitHubToken pat, GitHubLogin login, GitHubToken token)
+	{
+		Ensure.NotNull(client);
+		client.Credentials = ChooseCredentials(owner, pat, login, token);
+	}
+
 	private void ScanRemoteAccountsForRepos()
 	{
 		Dictionary<GitHubOwnerName, GitHubToken> knownOwners = Options.GitHubOwners;
 		foreach ((GitHubOwnerName owner, GitHubToken pat) in knownOwners)
 		{
-			if (!string.IsNullOrEmpty(pat) || (!string.IsNullOrEmpty(Options.GitHubLogin) && !string.IsNullOrEmpty(Options.GitHubToken)))
-			{
-				GitHubClient.Credentials = !string.IsNullOrEmpty(pat) ? new(owner, pat) : new(Options.GitHubLogin, Options.GitHubToken);
-			}
+			ApplyCredentials(GitHubClient, owner, pat, Options.GitHubLogin, Options.GitHubToken);
 
 			SyncGitHubOwnerInfo(owner);
 		}
