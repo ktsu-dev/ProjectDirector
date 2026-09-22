@@ -3,8 +3,12 @@
 namespace ktsu.ProjectDirector.Test;
 
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
 
 using DiffPlex.Model;
 
@@ -197,6 +201,167 @@ public sealed class SimilarReposTests
 		{
 			TryDeleteDirectory(a);
 		}
+	}
+
+	[TestMethod]
+	public void PairingSiblingsSkipsTheRepositoryBeingComparedAndNamesTheRest()
+	{
+		GitHubRepository repoA = Repository("/tmp/a", "A");
+		GitHubRepository repoB = Repository("/tmp/b", "B");
+
+		Collection<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> pairs =
+			ProjectDirector.PairSiblings(repoA, [repoA, repoB]);
+
+		Assert.AreEqual(1, pairs.Count, "A repository is not its own sibling.");
+		Assert.AreEqual(Name("B"), pairs[0].Key);
+		Assert.AreSame(repoB, pairs[0].Value);
+	}
+
+	[TestMethod]
+	public void PairingSiblingsRejectsARepositoryThatIsNotOnGitHub()
+	{
+		GitHubRepository repoA = Repository("/tmp/a", "A");
+		AzureDevOpsRepository other = new() { LocalPath = FullyQualifiedLocalRepoPath.Create<FullyQualifiedLocalRepoPath>("/tmp/b") };
+
+		// The throw belongs here, on the calling thread, rather than inside the background task
+		// where nothing would observe it.
+		_ = Assert.ThrowsExactly<InvalidOperationException>(() => ProjectDirector.PairSiblings(repoA, [repoA, other]));
+	}
+
+	[TestMethod]
+	public async Task ComparingSiblingsPublishesOffTheCallingThreadAndReportsWhatItDid()
+	{
+		string a = CreateRepository([("shared.txt", "one\n")]);
+		string b = CreateRepository([("shared.txt", "two\n")]);
+
+		try
+		{
+			GitHubRepository repoA = Repository(a, "A");
+			GitHubRepository repoB = Repository(b, "B");
+			ConcurrentQueue<string> log = [];
+
+			Task task = ProjectDirector.CompareSiblingsAsync(repoA, [repoA, repoB], log.Enqueue);
+
+			// The answer is not there yet, which is what the pending state renders instead of the
+			// comparison for whichever repository was selected before.
+			await task.ConfigureAwait(false);
+
+			Assert.IsFalse(repoA.SimilarReposPending);
+			Assert.IsTrue(repoA.SimilarRepoDiffs.ContainsKey(Name("B")));
+			Assert.HasCount(1, log);
+			StringAssert.Contains(log.Single(), "1 other repository", "One sibling is reported in the singular.");
+		}
+		finally
+		{
+			TryDeleteDirectory(a);
+			TryDeleteDirectory(b);
+		}
+	}
+
+	[TestMethod]
+	public async Task ComparingSeveralSiblingsReportsThemInThePlural()
+	{
+		string a = CreateRepository([("shared.txt", "one\n")]);
+		string b = CreateRepository([("shared.txt", "two\n")]);
+		string c = CreateRepository([("shared.txt", "three\n")]);
+
+		try
+		{
+			GitHubRepository repoA = Repository(a, "A");
+			ConcurrentQueue<string> log = [];
+
+			await ProjectDirector.CompareSiblingsAsync(repoA, [repoA, Repository(b, "B"), Repository(c, "C")], log.Enqueue).ConfigureAwait(false);
+
+			Assert.AreEqual(2, repoA.SimilarRepoDiffs.Count);
+			StringAssert.Contains(log.Single(), "2 other repositories");
+		}
+		finally
+		{
+			TryDeleteDirectory(a);
+			TryDeleteDirectory(b);
+			TryDeleteDirectory(c);
+		}
+	}
+
+	[TestMethod]
+	public async Task NoDiffIsFoundWhileAComparisonIsStillRunning()
+	{
+		string a = CreateRepository([("shared.txt", "one\n")]);
+		string b = CreateRepository([("shared.txt", "two\n")]);
+		RelativeFilePath shared = RelativeFilePath.Create<RelativeFilePath>("shared.txt");
+
+		try
+		{
+			GitHubRepository repoA = Repository(a, "A");
+
+			// Nothing has been compared, so the render paths must find nothing rather than throw
+			// the KeyNotFoundException that indexing straight into the dictionary would.
+			Assert.IsNull(ProjectDirector.FindDiff(repoA, Name("B"), shared));
+
+			await ProjectDirector.CompareSiblingsAsync(repoA, [repoA, Repository(b, "B")], _ => { }).ConfigureAwait(false);
+
+			Assert.IsNotNull(ProjectDirector.FindDiff(repoA, Name("B"), shared));
+			Assert.IsNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("absent.txt")), "A file the two do not share has no diff.");
+			Assert.IsNull(ProjectDirector.FindDiff(repoA, Name("Unknown"), shared), "A repository that was never compared has no diffs at all.");
+		}
+		finally
+		{
+			TryDeleteDirectory(a);
+			TryDeleteDirectory(b);
+		}
+	}
+
+	[TestMethod]
+	public async Task RefreshingOneFileUpdatesThatEntryAndLeavesTheRestAlone()
+	{
+		string a = CreateRepository([("shared.txt", "one\n"), ("other.txt", "x\n")]);
+		string b = CreateRepository([("shared.txt", "two\n"), ("other.txt", "y\n")]);
+		RelativeFilePath shared = RelativeFilePath.Create<RelativeFilePath>("shared.txt");
+
+		try
+		{
+			GitHubRepository repoA = Repository(a, "A");
+			GitHubRepository repoB = Repository(b, "B");
+			await ProjectDirector.CompareSiblingsAsync(repoA, [repoA, repoB], _ => { }).ConfigureAwait(false);
+
+			Assert.IsNotEmpty(ProjectDirector.FindDiff(repoA, Name("B"), shared)!.DiffBlocks);
+
+			await File.WriteAllTextAsync(Path.Combine(b, "shared.txt"), "one\n").ConfigureAwait(false);
+			ProjectDirector.RefreshFileDiff(repoA, repoB, shared);
+
+			Assert.IsEmpty(ProjectDirector.FindDiff(repoA, Name("B"), shared)!.DiffBlocks, "The re-diff should see the file the apply button just wrote.");
+			Assert.IsNotNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("other.txt")), "The rest of the comparison is untouched.");
+		}
+		finally
+		{
+			TryDeleteDirectory(a);
+			TryDeleteDirectory(b);
+		}
+	}
+
+	[TestMethod]
+	public void RefreshingOneFileIsDroppedWhenAWholeComparisonHasSupersededIt()
+	{
+		GitHubRepository repoA = Repository("/tmp/a", "A");
+		GitHubRepository repoB = Repository("/tmp/b", "B");
+
+		// A comparison can publish between the frame deciding to draw a file and the apply button
+		// being pressed, replacing the dictionary this was about to write into.
+		_ = repoA.RequestSimilarRepoDiffs();
+
+		ProjectDirector.RefreshFileDiff(repoA, repoB, RelativeFilePath.Create<RelativeFilePath>("shared.txt"));
+
+		Assert.IsEmpty(repoA.SimilarRepoDiffs, "Dropping the update beats reinstating an entry the newer run left out.");
+	}
+
+	[TestMethod]
+	public void RefreshingOneFileRejectsARepositoryThatIsNotOnGitHub()
+	{
+		GitHubRepository repoA = Repository("/tmp/a", "A");
+		AzureDevOpsRepository other = new() { LocalPath = FullyQualifiedLocalRepoPath.Create<FullyQualifiedLocalRepoPath>("/tmp/b") };
+
+		_ = Assert.ThrowsExactly<InvalidOperationException>(
+			() => ProjectDirector.RefreshFileDiff(repoA, other, RelativeFilePath.Create<RelativeFilePath>("shared.txt")));
 	}
 
 	private static string CreateRepository(IEnumerable<(string RelativePath, string Contents)> files)
