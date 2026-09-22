@@ -1,8 +1,9 @@
-## v1.2.11 (patch)
+## v1.2.12 (patch)
 
-Changes since v1.2.10:
+Changes since v1.2.11:
 
-- Bump ktsu.AppDataStorage and 15 others ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 11.3.0 to 11.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 18 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- fix: make the dev directory default work off Windows, and cover the load path [patch] ([@Claude](https://github.com/Claude))
+- test: cover applying an owner's credentials to the shared client [patch] ([@Claude](https://github.com/Claude))
+- fix: reject an unsupported saved repository at load instead of crashing [patch] ([@Claude](https://github.com/Claude))
+- fix: scan each owner with its own credentials, not the previous owner's [patch] ([@Claude](https://github.com/Claude))
 
