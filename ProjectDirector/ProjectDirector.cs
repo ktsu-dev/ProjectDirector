@@ -25,6 +25,12 @@ using Semantics.Paths;
 
 internal sealed class ProjectDirector
 {
+	/// <summary>
+	/// Drawn wherever a comparison is outstanding, in place of the answer for whichever repository
+	/// was selected before.
+	/// </summary>
+	private const string PendingComparisonMessage = "Comparing repositories...";
+
 	internal ProjectDirectorOptions Options { get; }
 	private static float FieldWidth => ImGui.GetIO().DisplaySize.X * 0.15f;
 	private DateTime LastSaveOptionsTime { get; set; } = DateTime.MinValue;
@@ -69,6 +75,9 @@ internal sealed class ProjectDirector
 	public ProjectDirector()
 	{
 		Options = ProjectDirectorOptions.LoadOrCreate();
+
+		_ = MakeLoadedOptionsSafe(Options, QueueLog);
+
 		Options.Save();
 		// ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
 		DividerDiff = new("DiffDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
@@ -82,15 +91,13 @@ internal sealed class ProjectDirector
 		{
 			GitRepository repoA = Options.Repos[Options.BaseRepo];
 			GitRepository repoB = Options.Repos[Options.CompareRepo];
-			DiffResult diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
-			ShowDiffLeft(repoA, repoB, diff);
+			ShowDiffLeft(repoA, repoB, FindDiff(repoA, Options.CompareRepo, Options.CompareFile));
 		});
 		DividerDiff.Add("Right", 0.50f, (dt) =>
 		{
 			GitRepository repoA = Options.Repos[Options.BaseRepo];
 			GitRepository repoB = Options.Repos[Options.CompareRepo];
-			DiffResult diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
-			ShowDiffRight(repoA, repoB, diff);
+			ShowDiffRight(repoA, repoB, FindDiff(repoA, Options.CompareRepo, Options.CompareFile));
 		});
 
 		RestoreDividerStates();
@@ -112,6 +119,106 @@ internal sealed class ProjectDirector
 		DrainSecretStoreReport();
 
 		RefreshPage();
+	}
+
+	/// <summary>
+	/// Drops any saved repository this application cannot act on, along with any selection left
+	/// pointing at one.
+	/// </summary>
+	/// <param name="repos">The freshly loaded repositories, modified in place.</param>
+	/// <param name="clonedRepos">The freshly loaded clone records, modified in place.</param>
+	/// <returns>The names of the repositories that were dropped, in the order they were found.</returns>
+	/// <remarks>
+	/// <see cref="GitRepository"/> registers <see cref="AzureDevOpsRepository"/> as a
+	/// <see cref="System.Text.Json.Serialization.JsonDerivedTypeAttribute"/>, so a saved options
+	/// file carrying one deserializes without complaint. Nothing acts on it: every site that
+	/// pattern-matches a repository handles <see cref="GitHubRepository"/> and throws otherwise,
+	/// and <see cref="GitRepository.Create"/> cannot produce anything else in the first place.
+	/// <c>UpdateClonedStatus</c> then runs from the constructor's <c>RefreshPage</c>, so the throw
+	/// landed on the very next launch -- before the user could open the UI and delete the entry
+	/// that was causing it, which made it unrecoverable without hand-editing the file.
+	/// Rejecting the entry at the one boundary it can arrive through is what makes that
+	/// unreachable, rather than guarding six call sites separately. The registration is left in
+	/// place so an existing file still parses; it is the live object that is refused.
+	/// The collections are taken rather than the whole <see cref="ProjectDirectorOptions"/> so this
+	/// rule can be driven without constructing one.
+	/// </remarks>
+	internal static IReadOnlyList<FullyQualifiedGitHubRepoName> RejectUnsupportedRepos(
+		IDictionary<FullyQualifiedGitHubRepoName, GitRepository> repos,
+		IDictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> clonedRepos)
+	{
+		Ensure.NotNull(repos);
+		Ensure.NotNull(clonedRepos);
+
+		List<FullyQualifiedGitHubRepoName> rejected = [.. repos
+			.Where(kvp => kvp.Value is not GitHubRepository)
+			.Select(kvp => kvp.Key)];
+
+		foreach (FullyQualifiedGitHubRepoName name in rejected)
+		{
+			_ = repos.Remove(name);
+		}
+
+		// A clone recorded against a rejected repository would otherwise keep naming it.
+		foreach (FullyQualifiedLocalRepoPath path in clonedRepos
+			.Where(kvp => rejected.Contains(kvp.Value))
+			.Select(kvp => kvp.Key)
+			.ToList())
+		{
+			_ = clonedRepos.Remove(path);
+		}
+
+		return rejected;
+	}
+
+	/// <summary>
+	/// Clears a selected repository name that names one of the <paramref name="rejected"/>
+	/// repositories.
+	/// </summary>
+	/// <param name="selection">The saved selection.</param>
+	/// <param name="rejected">The repositories that were dropped.</param>
+	/// <returns>The selection, or an empty name where it named a dropped repository.</returns>
+	/// <remarks>
+	/// Once something is selected the panels reach for it through
+	/// <c>Options.Repos[Options.BaseRepo]</c>, so a selection outliving its repository turns one
+	/// crash into another. An empty name is the state a fresh install starts in, which the
+	/// surrounding <c>TryGetValue</c> checks already handle.
+	/// </remarks>
+	internal static FullyQualifiedGitHubRepoName ClearSelectionIfRejected(
+		FullyQualifiedGitHubRepoName selection,
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejected)
+	{
+		Ensure.NotNull(rejected);
+
+		return rejected.Contains(selection) ? new() : selection;
+	}
+
+	/// <summary>
+	/// Rejects every saved repository this application cannot act on, clears anything left pointing
+	/// at one, and reports each rejection.
+	/// </summary>
+	/// <param name="options">The freshly loaded options, modified in place.</param>
+	/// <param name="log">Where to report each rejected repository.</param>
+	/// <returns>The names of the repositories that were dropped.</returns>
+	/// <remarks>
+	/// The whole of what the constructor does after loading, in one place, so it can be driven
+	/// without an ImGui context.
+	/// </remarks>
+	internal static IReadOnlyList<FullyQualifiedGitHubRepoName> MakeLoadedOptionsSafe(ProjectDirectorOptions options, Action<string> log)
+	{
+		Ensure.NotNull(options);
+		Ensure.NotNull(log);
+
+		IReadOnlyList<FullyQualifiedGitHubRepoName> rejected = RejectUnsupportedRepos(options.Repos, options.ClonedRepos);
+		options.BaseRepo = ClearSelectionIfRejected(options.BaseRepo, rejected);
+		options.CompareRepo = ClearSelectionIfRejected(options.CompareRepo, rejected);
+
+		foreach (FullyQualifiedGitHubRepoName name in rejected)
+		{
+			log($"Ignoring saved repository '{name}': only GitHub repositories are supported at this time.");
+		}
+
+		return rejected;
 	}
 
 	private void QueueLog(string logMessage)
@@ -663,7 +770,15 @@ internal sealed class ProjectDirector
 				}
 			});
 
-			if (!Options.CompareFile.IsEmpty())
+			// One comparison feeds all three of these panels, and exactly one of them draws, so the
+			// pending state is decided here rather than repeated inside each. Until the comparison
+			// publishes there is nothing to show but the previous repository's answer, which is
+			// worse than showing nothing.
+			if (repo.SimilarReposPending)
+			{
+				ShowCollapsiblePanel($"Similar Repos", () => ImGui.TextUnformatted(PendingComparisonMessage));
+			}
+			else if (!Options.CompareFile.IsEmpty())
 			{
 				ShowCollapsiblePanel($"Compare File", () => ShowComparedFile(dt, repo));
 			}
@@ -966,11 +1081,75 @@ internal sealed class ProjectDirector
 	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(Repository repo) => FullyQualifiedGitHubRepoName.Create<FullyQualifiedGitHubRepoName>(repo.FullName.Replace('/', '.'));
 	private static FullyQualifiedGitHubRepoName GetFullyQualifiedRepoName(GitHubOwnerName ownerName, GitHubRepoName repoName) => FullyQualifiedGitHubRepoName.Create<FullyQualifiedGitHubRepoName>($"{ownerName}.{repoName}");
 
+	/// <summary>
+	/// Walks <paramref name="root"/> for <c>.git</c> directories, skipping any directory that cannot
+	/// be read rather than abandoning the rest of the tree.
+	/// </summary>
+	/// <param name="root">The directory to walk.</param>
+	/// <param name="listDirectories">
+	/// Lists the immediate subdirectories of one directory. Defaults to <see cref="Directory.GetDirectories(string)"/>;
+	/// the tests substitute a lister that denies a chosen directory, which is the one thing a test cannot
+	/// arrange through the file system itself when it runs as a user that bypasses permission checks.
+	/// </param>
+	/// <remarks>
+	/// The recursive form of <see cref="Directory.EnumerateDirectories(string, string, SearchOption)"/>
+	/// leaves <see cref="EnumerationOptions.IgnoreInaccessible"/> off, and it is lazy, so one
+	/// permission-denied folder anywhere under the dev directory throws part way through the walk and
+	/// takes every repository that would have been found after it along with it. A dev directory
+	/// realistically holds package caches, build output and IDE metadata, so such a folder is ordinary
+	/// rather than exotic. Listing a level at a time keeps a refusal local to the directory that
+	/// raised it.
+	/// Descending stops at a <c>.git</c> directory, whose contents are git's own storage and hold no
+	/// further working trees.
+	/// </remarks>
+	internal static IEnumerable<string> EnumerateGitDirectories(string root, Func<string, string[]>? listDirectories = null)
+	{
+		listDirectories ??= Directory.GetDirectories;
+
+		Stack<string> pending = new();
+		pending.Push(root);
+
+		while (pending.Count > 0)
+		{
+			string current = pending.Pop();
+			string[] subdirectories;
+
+			try
+			{
+				subdirectories = listDirectories(current);
+			}
+			catch (UnauthorizedAccessException)
+			{
+				// The process cannot read this directory; the rest of the tree is still worth walking.
+				continue;
+			}
+			catch (IOException)
+			{
+				// Covers a directory removed mid-walk, a dead junction, and an unreadable volume.
+				continue;
+			}
+
+			foreach (string subdirectory in subdirectories)
+			{
+				// Matched without regard to case because that is what the previous pattern match did
+				// on Windows, which is where this application primarily runs.
+				if (string.Equals(Path.GetFileName(subdirectory), ".git", StringComparison.OrdinalIgnoreCase))
+				{
+					yield return subdirectory;
+				}
+				else
+				{
+					pending.Push(subdirectory);
+				}
+			}
+		}
+	}
+
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
 	private void ScanDevDirectoryForOwnersAndRepos()
 	{
 		// scan the dev directory for git repos and when we find one we add the owner to the list of owners and the repo to the list of repos
-		IEnumerable<string> gitDirs = Directory.EnumerateDirectories(Options.DevDirectory, ".git", SearchOption.AllDirectories);
+		IEnumerable<string> gitDirs = EnumerateGitDirectories(Options.DevDirectory);
 		foreach (string gitDir in gitDirs)
 		{
 			// The working tree is the parent of the .git directory, so there is nothing to ask git
@@ -1024,16 +1203,66 @@ internal sealed class ProjectDirector
 		UpdateClonedStatus();
 	}
 
+	/// <summary>
+	/// Chooses the credentials one owner is scanned with.
+	/// </summary>
+	/// <param name="owner">The owner about to be scanned.</param>
+	/// <param name="pat">That owner's own personal access token, empty if it has none.</param>
+	/// <param name="login">The globally configured login, empty if there is none.</param>
+	/// <param name="token">The globally configured token, empty if there is none.</param>
+	/// <returns>
+	/// The owner's own token where it has one, otherwise the global login where there is one,
+	/// otherwise <see cref="Credentials.Anonymous"/>.
+	/// </returns>
+	/// <remarks>
+	/// The answer has to be total. <see cref="Octokit.GitHubClient.Credentials"/> is one mutable
+	/// property on a client shared by every owner in the scan, so an owner that leaves it alone is
+	/// not scanned anonymously -- it is scanned as whoever was set last. A PAT configured for one
+	/// owner therefore carried into the next owner that had none, which misses that owner's own
+	/// private repositories and answers anything needing its auth with an
+	/// <see cref="ApiException"/> that the caller swallows, leaving the repositories missing with
+	/// no indication why.
+	/// </remarks>
+	internal static Credentials ChooseCredentials(GitHubOwnerName owner, GitHubToken pat, GitHubLogin login, GitHubToken token)
+	{
+		if (!string.IsNullOrEmpty(pat))
+		{
+			return new Credentials(owner, pat);
+		}
+
+		return !string.IsNullOrEmpty(login) && !string.IsNullOrEmpty(token)
+			? new Credentials(login, token)
+			: Credentials.Anonymous;
+	}
+
+	/// <summary>
+	/// Points the shared client at the credentials one owner is scanned with.
+	/// </summary>
+	/// <param name="client">The client every owner in the scan shares.</param>
+	/// <param name="owner">The owner about to be scanned.</param>
+	/// <param name="pat">That owner's own personal access token, empty if it has none.</param>
+	/// <param name="login">The globally configured login, empty if there is none.</param>
+	/// <param name="token">The globally configured token, empty if there is none.</param>
+	/// <remarks>
+	/// Assigned for every owner, including one with no credentials of its own, so that the previous
+	/// owner's identity cannot carry into this one. That is the whole of the rule, and it is here
+	/// rather than inline in the loop so a test can watch one client across two owners, which is the
+	/// shape the defect actually had.
+	/// </remarks>
+	internal static void ApplyCredentials(GitHubClient client, GitHubOwnerName owner, GitHubToken pat, GitHubLogin login, GitHubToken token)
+	{
+		Ensure.NotNull(client);
+		client.Credentials = ChooseCredentials(owner, pat, login, token);
+	}
+
 	private void ScanRemoteAccountsForRepos()
 	{
 		foreach (GitHubOwnerName owner in Options.GitHubOwners.ToArray())
 		{
-			Credentials? credentials = ResolveGitHubCredentials(
-				owner, TokenStorage.ReadOwnerToken(owner), Options.GitHubLogin, Options.GitHubToken);
-			if (credentials is not null)
-			{
-				GitHubClient.Credentials = credentials;
-			}
+			// The owner's token now comes from the secret store rather than the options file, but the
+			// assignment still has to happen for every owner — including one with no token of its own —
+			// or the previous owner's identity carries into this scan.
+			ApplyCredentials(GitHubClient, owner, TokenStorage.ReadOwnerToken(owner), Options.GitHubLogin, Options.GitHubToken);
 
 			SyncGitHubOwnerInfo(owner);
 		}
@@ -1045,27 +1274,109 @@ internal sealed class ProjectDirector
 
 	private static FullyQualifiedLocalRepoPath MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath localPath) => FullyQualifiedLocalRepoPath.Create<FullyQualifiedLocalRepoPath>(Path.GetFullPath(localPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
-	private void UpdateSimilarRepos(GitRepository repo)
+	/// <summary>
+	/// Compares a repository against every sibling, on a background task.
+	/// </summary>
+	/// <remarks>
+	/// This runs a pair of git subprocesses and a whole-file diff per sibling, so at the "dozens of
+	/// sibling repositories" this tool is for it is far too much work to do between frames. Fetch,
+	/// pull, push and clone all background their git calls for the same reason; this path did not,
+	/// and it sits on the most frequent interaction there is, selecting a repository.
+	/// </remarks>
+	private void UpdateSimilarRepos(GitRepository repo) => _ = CompareSiblingsAsync(repo, Options.Repos.Values, QueueLog);
+
+	/// <summary>
+	/// Pairs each sibling of <paramref name="repo"/> with the name a comparison is keyed by.
+	/// </summary>
+	/// <param name="repo">The repository being compared, which is not its own sibling.</param>
+	/// <param name="repos">Every known repository.</param>
+	/// <returns>The siblings, paired with their fully qualified names.</returns>
+	/// <exception cref="InvalidOperationException">A repository that is not a GitHub repository.</exception>
+	/// <remarks>
+	/// Called before the background task starts rather than inside it, so the work never enumerates
+	/// <c>Options.Repos</c> while the UI can add to or remove from it, and so the unsupported-repository
+	/// throw lands on the calling thread where it is still observable rather than on a task nobody awaits.
+	/// </remarks>
+	internal static Collection<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> PairSiblings(GitRepository repo, IEnumerable<GitRepository> repos)
 	{
-		foreach ((FullyQualifiedGitHubRepoName _, GitRepository otherRepo) in Options.Repos)
+		Ensure.NotNull(repos);
+
+		Collection<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others = [];
+		foreach (GitRepository otherRepo in repos.Where(otherRepo => repo != otherRepo))
 		{
-			if (repo != otherRepo)
-			{
-				Dictionary<RelativeFilePath, DiffResult> diffs = DiffRepos(repo, otherRepo);
-				if (otherRepo is GitHubRepository gitHubRepo)
-				{
-					FullyQualifiedGitHubRepoName otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
-					repo.SimilarRepoDiffs[otherRepoName] = diffs;
-				}
-				else
-				{
-					throw new InvalidOperationException("Only GitHub Repos are supported at this time");
-				}
-			}
+			others.Add(otherRepo is GitHubRepository gitHubRepo
+				? new(GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName), otherRepo)
+				: throw new InvalidOperationException("Only GitHub Repos are supported at this time"));
 		}
+
+		return others;
 	}
 
-	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, GitRepository repoB)
+	/// <summary>
+	/// Starts a comparison of a repository against every sibling, on a background task.
+	/// </summary>
+	/// <param name="repo">The repository to compare.</param>
+	/// <param name="repos">Every known repository.</param>
+	/// <param name="log">Reports the finished comparison, on the background thread.</param>
+	/// <returns>The task running the comparison, so a caller that cares can wait for it.</returns>
+	/// <remarks>
+	/// The comparison runs a pair of git subprocesses and a whole-file diff per sibling, so at the
+	/// "dozens of sibling repositories" this tool is for it is far too much work to do between
+	/// frames. Fetch, pull, push and clone all background their git calls for the same reason; this
+	/// path did not, and it sits on the most frequent interaction there is, selecting a repository.
+	/// The render thread discards the task, but returning it keeps the work observable.
+	/// </remarks>
+	internal static Task CompareSiblingsAsync(GitRepository repo, IEnumerable<GitRepository> repos, Action<string> log)
+	{
+		Ensure.NotNull(repo);
+		Ensure.NotNull(log);
+
+		Collection<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others = PairSiblings(repo, repos);
+
+		int token = repo.RequestSimilarRepoDiffs();
+		Task task = new(() =>
+		{
+			Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> diffs = DiffAgainstAll(repo, others);
+			if (repo.TryApplySimilarRepoDiffs(token, diffs))
+			{
+				log($"[{DateTimeOffset.Now}] Compared {repo.RemotePath} against {others.Count} other {(others.Count == 1 ? "repository" : "repositories")}");
+			}
+		});
+
+		task.Start();
+		return task;
+	}
+
+	/// <summary>
+	/// Compares one repository against a set of siblings, returning the diffs keyed by sibling.
+	/// </summary>
+	/// <param name="repo">The repository every sibling is compared against.</param>
+	/// <param name="others">The siblings, paired with the names to key the result by.</param>
+	/// <returns>The diffs for each sibling.</returns>
+	/// <remarks>
+	/// The base repository's tracked-file list is read once for the whole run rather than once per
+	/// sibling, which is what <c>DiffRepos</c> used to do. Across N siblings that is N + 1 calls to
+	/// <c>git ls-files</c> where there were 2N, and the list cannot go stale mid-run because it does
+	/// not outlive one.
+	/// </remarks>
+	internal static Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> DiffAgainstAll(
+		GitRepository repo,
+		IEnumerable<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others)
+	{
+		Collection<string> trackedFiles = GitCli.IsRepository(repo.LocalPath)
+			? GitCli.ListTrackedFiles(repo.LocalPath)
+			: [];
+
+		Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> diffs = [];
+		foreach ((FullyQualifiedGitHubRepoName otherRepoName, GitRepository otherRepo) in others)
+		{
+			diffs[otherRepoName] = DiffRepos(repo, trackedFiles, otherRepo);
+		}
+
+		return diffs;
+	}
+
+	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, IEnumerable<string> trackedFilesA, GitRepository repoB)
 	{
 		Dictionary<RelativeFilePath, DiffResult> diffs = [];
 
@@ -1074,7 +1385,7 @@ internal sealed class ProjectDirector
 			return diffs;
 		}
 
-		Collection<string> matches = GitCli.ListTrackedFiles(repoA.LocalPath)
+		Collection<string> matches = trackedFilesA
 			.Intersect(GitCli.ListTrackedFiles(repoB.LocalPath))
 			.ToCollection();
 
@@ -1109,6 +1420,28 @@ internal sealed class ProjectDirector
 		}
 	}
 
+	/// <summary>
+	/// Looks up one file's diff against a sibling repository.
+	/// </summary>
+	/// <param name="repo">The base repository holding the comparison.</param>
+	/// <param name="otherRepoName">The sibling to compare against.</param>
+	/// <param name="filePath">The file whose diff is wanted.</param>
+	/// <returns>The diff, or <see langword="null"/> when none has been computed.</returns>
+	/// <remarks>
+	/// Every caller of this is a render path, and a comparison now runs in the background, so there
+	/// is a window in which no diff exists yet. Asking rather than indexing is what keeps a refresh
+	/// from taking the window down while the user is looking at a file.
+	/// </remarks>
+	internal static DiffResult? FindDiff(GitRepository repo, FullyQualifiedGitHubRepoName otherRepoName, RelativeFilePath filePath)
+	{
+		Ensure.NotNull(repo);
+
+		return repo.SimilarRepoDiffs.TryGetValue(otherRepoName, out Dictionary<RelativeFilePath, DiffResult>? diffs)
+			&& diffs.TryGetValue(filePath, out DiffResult? found)
+				? found
+				: null;
+	}
+
 	private static DiffResult DiffSingleFile(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
 	{
 		if (repoA == repoB || !GitCli.IsRepository(repoA.LocalPath) || !GitCli.IsRepository(repoB.LocalPath))
@@ -1122,13 +1455,27 @@ internal sealed class ProjectDirector
 		return Differ.Instance.CreateLineDiffs(fileContents, otherFileContents, ignoreWhitespace: false, ignoreCase: false);
 	}
 
-	private static void RefreshFileDiff(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
+	/// <summary>
+	/// Re-diffs one file after its content changed, leaving the rest of the comparison alone.
+	/// </summary>
+	/// <param name="repoA">The base repository holding the comparison.</param>
+	/// <param name="repoB">The sibling the file is compared against.</param>
+	/// <param name="filePath">The file to re-diff.</param>
+	internal static void RefreshFileDiff(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
 	{
 		DiffResult diff = DiffSingleFile(repoA, repoB, filePath);
 		if (repoB is GitHubRepository gitHubRepo)
 		{
 			FullyQualifiedGitHubRepoName otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
-			repoA.SimilarRepoDiffs[otherRepoName][filePath] = diff;
+
+			// A whole-repository comparison can publish between the frame deciding to draw this
+			// file and the button being pressed, replacing the dictionary this was about to write
+			// into. The new comparison already read the file from disk, so dropping this update is
+			// the right answer rather than reinstating an entry that run left out.
+			if (repoA.SimilarRepoDiffs.TryGetValue(otherRepoName, out Dictionary<RelativeFilePath, DiffResult>? diffs))
+			{
+				diffs[filePath] = diff;
+			}
 		}
 		else
 		{
@@ -1256,7 +1603,12 @@ internal sealed class ProjectDirector
 		ImGui.TextUnformatted($"Comparing {Options.BaseRepo} vs {Options.CompareRepo}");
 		ImGui.SameLine();
 
-		DiffResult diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+		if (FindDiff(repo, Options.CompareRepo, Options.CompareFile) is not DiffResult diff)
+		{
+			ImGui.TextUnformatted(PendingComparisonMessage);
+			return;
+		}
+
 		ShowWholeDiffSummary(diff);
 
 		ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));

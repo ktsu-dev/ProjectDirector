@@ -1,6 +1,36 @@
-## v1.2.10
+## v1.2.14 (patch)
 
-No significant changes detected since v1.2.10.
+Changes since v1.2.13:
+
+- refactor: filter the siblings with Where instead of an inner if [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- test: address the code-quality findings on the new tests [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- refactor: lift the comparison's rules out of the render paths [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- test: cover which comparison wins and what shows while one runs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- fix: compare a repo against its siblings off the render thread [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+
+## v1.2.13 (patch)
+
+Changes since v1.2.12:
+
+- Merge main into fix/425-scan-skips-unreadable-dirs ([@Claude](https://github.com/Claude))
+- fix: survive an unreadable directory while scanning the dev directory [patch] ([@Claude](https://github.com/Claude))
+
+## v1.2.12 (patch)
+
+Changes since v1.2.11:
+
+- fix: make the dev directory default work off Windows, and cover the load path [patch] ([@Claude](https://github.com/Claude))
+- test: cover applying an owner's credentials to the shared client [patch] ([@Claude](https://github.com/Claude))
+- fix: reject an unsupported saved repository at load instead of crashing [patch] ([@Claude](https://github.com/Claude))
+- fix: scan each owner with its own credentials, not the previous owner's [patch] ([@Claude](https://github.com/Claude))
+
+## v1.2.11 (patch)
+
+Changes since v1.2.10:
+
+- Bump ktsu.AppDataStorage and 15 others ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.3.0 to 11.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 18 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
 ## v1.2.10 (patch)
 
