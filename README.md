@@ -57,9 +57,14 @@ dotnet run
 dotnet publish --configuration Release --output ./staging
 ```
 
-On first run, set the development directory that ProjectDirector should scan and supply GitHub
-credentials if you want remote repositories listed. Both are persisted to the application data
-folder, so subsequent runs start where you left off.
+On first run, set the development directory that ProjectDirector should scan and add the GitHub
+owners you want listed (**File > Add New GitHub Owner**). Give an owner a personal access token with
+**File > Set GitHub Owner Token** if its repositories are private or you want a higher rate limit.
+
+The development directory, the owner list and the repository cache are persisted to the application
+data folder. Tokens are not: they go to the operating system's secret store — Windows Credential
+Manager, macOS Keychain, or libsecret (Secret Service) on Linux. A token saved by an earlier version
+is moved there on the next start and emptied where it was, so nothing needs re-entering.
 
 ### Typical Workflow
 
@@ -75,7 +80,8 @@ folder, so subsequent runs start where you left off.
 | Component | Responsibility |
 | --- | --- |
 | `ProjectDirector` | Main application class: ImGui loop, three-panel layout, and the fetch/pull/diff/propagate operations. |
-| `ProjectDirectorOptions` | Application state persisted as JSON — dev directory, credentials, repository cache, and UI state. |
+| `ProjectDirectorOptions` | Application state persisted as JSON — dev directory, configured GitHub owners, repository cache, and UI state. Deliberately holds no tokens. |
+| `TokenStorage` | GitHub tokens in the OS secret store, keyed by a persona derived from the login or owner name, plus the one-time migration off the old plaintext fields. |
 | `GitRepository` | Abstract repository model with polymorphic JSON serialization. |
 | `GitHubRepository` / `AzureDevOpsRepository` | Provider-specific repository implementations. |
 | `PopupPropagateFile` | Modal that drives the file propagation flow. |

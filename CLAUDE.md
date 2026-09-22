@@ -41,7 +41,13 @@ dotnet test --configuration Release
 
 **[ProjectDirectorOptions.cs](ProjectDirector/ProjectDirectorOptions.cs)** - Application state
 - Extends `AppData<T>` from ktsu.AppDataStorage for automatic JSON persistence
-- Stores: dev directory path, GitHub credentials, repo cache, UI state (divider positions, panel states)
+- Stores: dev directory path, which GitHub owners are configured, repo cache, UI state (divider
+  positions, panel states)
+- **Not** GitHub tokens. Those live in the OS secret store via
+  [TokenStorage.cs](ProjectDirector/TokenStorage.cs), because this file sits next to UI preferences
+  and is rewritten on every debounced save
+- `LegacyGitHubToken` and `LegacyGitHubOwners` keep the old JSON names purely for the one-time
+  migration run at startup: tokens are written to the secret store first, then emptied here
 - Semantic string types for type-safe paths and identifiers
 
 **[GitRepository.cs](ProjectDirector/GitRepository.cs)** - Repository abstraction
@@ -62,7 +68,7 @@ dotnet test --configuration Release
 
 Git LFS is a pair of filters plus a set of hooks, and all of them belong to the git command. A library that reads and writes the object database directly bypasses them: a commit stores raw bytes where a pointer belongs, and a clone or checkout lands the pointer text on disk where the file belongs. This application clones, fetches and pulls, so it is the checkout side that matters here. `ProjectDirector.Test` pins both halves down.
 
-Authentication follows from the same decision. There are no credentials in this code, because git uses the platform credential helper, which is also what makes SSH remotes work.
+Authentication follows from the same decision. There are no credentials in this code for git operations, because git uses the platform credential helper, which is also what makes SSH remotes work. The GitHub API tokens the app does hold follow the same principle: `TokenStorage` keeps them in the platform secret store (Windows Credential Manager, macOS Keychain, libsecret on Linux), derives a persona per token from a versioned namespace plus the login or owner name, and never falls back to a plain file. With no usable store, tokens read as empty and the reason reaches the log once — a throw out of a token read would take down the render loop.
 
 ### Key Dependencies
 
