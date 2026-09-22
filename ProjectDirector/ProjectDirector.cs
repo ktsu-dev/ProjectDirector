@@ -25,6 +25,12 @@ using Semantics.Paths;
 
 internal sealed class ProjectDirector
 {
+	/// <summary>
+	/// Drawn wherever a comparison is outstanding, in place of the answer for whichever repository
+	/// was selected before.
+	/// </summary>
+	private const string PendingComparisonMessage = "Comparing repositories...";
+
 	internal ProjectDirectorOptions Options { get; }
 	private static float FieldWidth => ImGui.GetIO().DisplaySize.X * 0.15f;
 	private DateTime LastSaveOptionsTime { get; set; } = DateTime.MinValue;
@@ -78,15 +84,13 @@ internal sealed class ProjectDirector
 		{
 			GitRepository repoA = Options.Repos[Options.BaseRepo];
 			GitRepository repoB = Options.Repos[Options.CompareRepo];
-			DiffResult diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
-			ShowDiffLeft(repoA, repoB, diff);
+			ShowDiffLeft(repoA, repoB, FindDiff(repoA, Options.CompareRepo, Options.CompareFile));
 		});
 		DividerDiff.Add("Right", 0.50f, (dt) =>
 		{
 			GitRepository repoA = Options.Repos[Options.BaseRepo];
 			GitRepository repoB = Options.Repos[Options.CompareRepo];
-			DiffResult diff = repoA.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
-			ShowDiffRight(repoA, repoB, diff);
+			ShowDiffRight(repoA, repoB, FindDiff(repoA, Options.CompareRepo, Options.CompareFile));
 		});
 
 		RestoreDividerStates();
@@ -636,7 +640,15 @@ internal sealed class ProjectDirector
 				}
 			});
 
-			if (!Options.CompareFile.IsEmpty())
+			// One comparison feeds all three of these panels, and exactly one of them draws, so the
+			// pending state is decided here rather than repeated inside each. Until the comparison
+			// publishes there is nothing to show but the previous repository's answer, which is
+			// worse than showing nothing.
+			if (repo.SimilarReposPending)
+			{
+				ShowCollapsiblePanel($"Similar Repos", () => ImGui.TextUnformatted(PendingComparisonMessage));
+			}
+			else if (!Options.CompareFile.IsEmpty())
 			{
 				ShowCollapsiblePanel($"Compare File", () => ShowComparedFile(dt, repo));
 			}
@@ -1115,27 +1127,109 @@ internal sealed class ProjectDirector
 
 	private static FullyQualifiedLocalRepoPath MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath localPath) => FullyQualifiedLocalRepoPath.Create<FullyQualifiedLocalRepoPath>(Path.GetFullPath(localPath).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar));
 
-	private void UpdateSimilarRepos(GitRepository repo)
+	/// <summary>
+	/// Compares a repository against every sibling, on a background task.
+	/// </summary>
+	/// <remarks>
+	/// This runs a pair of git subprocesses and a whole-file diff per sibling, so at the "dozens of
+	/// sibling repositories" this tool is for it is far too much work to do between frames. Fetch,
+	/// pull, push and clone all background their git calls for the same reason; this path did not,
+	/// and it sits on the most frequent interaction there is, selecting a repository.
+	/// </remarks>
+	private void UpdateSimilarRepos(GitRepository repo) => _ = CompareSiblingsAsync(repo, Options.Repos.Values, QueueLog);
+
+	/// <summary>
+	/// Pairs each sibling of <paramref name="repo"/> with the name a comparison is keyed by.
+	/// </summary>
+	/// <param name="repo">The repository being compared, which is not its own sibling.</param>
+	/// <param name="repos">Every known repository.</param>
+	/// <returns>The siblings, paired with their fully qualified names.</returns>
+	/// <exception cref="InvalidOperationException">A repository that is not a GitHub repository.</exception>
+	/// <remarks>
+	/// Called before the background task starts rather than inside it, so the work never enumerates
+	/// <c>Options.Repos</c> while the UI can add to or remove from it, and so the unsupported-repository
+	/// throw lands on the calling thread where it is still observable rather than on a task nobody awaits.
+	/// </remarks>
+	internal static Collection<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> PairSiblings(GitRepository repo, IEnumerable<GitRepository> repos)
 	{
-		foreach ((FullyQualifiedGitHubRepoName _, GitRepository otherRepo) in Options.Repos)
+		Ensure.NotNull(repos);
+
+		Collection<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others = [];
+		foreach (GitRepository otherRepo in repos.Where(otherRepo => repo != otherRepo))
 		{
-			if (repo != otherRepo)
-			{
-				Dictionary<RelativeFilePath, DiffResult> diffs = DiffRepos(repo, otherRepo);
-				if (otherRepo is GitHubRepository gitHubRepo)
-				{
-					FullyQualifiedGitHubRepoName otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
-					repo.SimilarRepoDiffs[otherRepoName] = diffs;
-				}
-				else
-				{
-					throw new InvalidOperationException("Only GitHub Repos are supported at this time");
-				}
-			}
+			others.Add(otherRepo is GitHubRepository gitHubRepo
+				? new(GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName), otherRepo)
+				: throw new InvalidOperationException("Only GitHub Repos are supported at this time"));
 		}
+
+		return others;
 	}
 
-	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, GitRepository repoB)
+	/// <summary>
+	/// Starts a comparison of a repository against every sibling, on a background task.
+	/// </summary>
+	/// <param name="repo">The repository to compare.</param>
+	/// <param name="repos">Every known repository.</param>
+	/// <param name="log">Reports the finished comparison, on the background thread.</param>
+	/// <returns>The task running the comparison, so a caller that cares can wait for it.</returns>
+	/// <remarks>
+	/// The comparison runs a pair of git subprocesses and a whole-file diff per sibling, so at the
+	/// "dozens of sibling repositories" this tool is for it is far too much work to do between
+	/// frames. Fetch, pull, push and clone all background their git calls for the same reason; this
+	/// path did not, and it sits on the most frequent interaction there is, selecting a repository.
+	/// The render thread discards the task, but returning it keeps the work observable.
+	/// </remarks>
+	internal static Task CompareSiblingsAsync(GitRepository repo, IEnumerable<GitRepository> repos, Action<string> log)
+	{
+		Ensure.NotNull(repo);
+		Ensure.NotNull(log);
+
+		Collection<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others = PairSiblings(repo, repos);
+
+		int token = repo.RequestSimilarRepoDiffs();
+		Task task = new(() =>
+		{
+			Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> diffs = DiffAgainstAll(repo, others);
+			if (repo.TryApplySimilarRepoDiffs(token, diffs))
+			{
+				log($"[{DateTimeOffset.Now}] Compared {repo.RemotePath} against {others.Count} other {(others.Count == 1 ? "repository" : "repositories")}");
+			}
+		});
+
+		task.Start();
+		return task;
+	}
+
+	/// <summary>
+	/// Compares one repository against a set of siblings, returning the diffs keyed by sibling.
+	/// </summary>
+	/// <param name="repo">The repository every sibling is compared against.</param>
+	/// <param name="others">The siblings, paired with the names to key the result by.</param>
+	/// <returns>The diffs for each sibling.</returns>
+	/// <remarks>
+	/// The base repository's tracked-file list is read once for the whole run rather than once per
+	/// sibling, which is what <c>DiffRepos</c> used to do. Across N siblings that is N + 1 calls to
+	/// <c>git ls-files</c> where there were 2N, and the list cannot go stale mid-run because it does
+	/// not outlive one.
+	/// </remarks>
+	internal static Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> DiffAgainstAll(
+		GitRepository repo,
+		IEnumerable<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others)
+	{
+		Collection<string> trackedFiles = GitCli.IsRepository(repo.LocalPath)
+			? GitCli.ListTrackedFiles(repo.LocalPath)
+			: [];
+
+		Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> diffs = [];
+		foreach ((FullyQualifiedGitHubRepoName otherRepoName, GitRepository otherRepo) in others)
+		{
+			diffs[otherRepoName] = DiffRepos(repo, trackedFiles, otherRepo);
+		}
+
+		return diffs;
+	}
+
+	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, IEnumerable<string> trackedFilesA, GitRepository repoB)
 	{
 		Dictionary<RelativeFilePath, DiffResult> diffs = [];
 
@@ -1144,7 +1238,7 @@ internal sealed class ProjectDirector
 			return diffs;
 		}
 
-		Collection<string> matches = GitCli.ListTrackedFiles(repoA.LocalPath)
+		Collection<string> matches = trackedFilesA
 			.Intersect(GitCli.ListTrackedFiles(repoB.LocalPath))
 			.ToCollection();
 
@@ -1179,6 +1273,28 @@ internal sealed class ProjectDirector
 		}
 	}
 
+	/// <summary>
+	/// Looks up one file's diff against a sibling repository.
+	/// </summary>
+	/// <param name="repo">The base repository holding the comparison.</param>
+	/// <param name="otherRepoName">The sibling to compare against.</param>
+	/// <param name="filePath">The file whose diff is wanted.</param>
+	/// <returns>The diff, or <see langword="null"/> when none has been computed.</returns>
+	/// <remarks>
+	/// Every caller of this is a render path, and a comparison now runs in the background, so there
+	/// is a window in which no diff exists yet. Asking rather than indexing is what keeps a refresh
+	/// from taking the window down while the user is looking at a file.
+	/// </remarks>
+	internal static DiffResult? FindDiff(GitRepository repo, FullyQualifiedGitHubRepoName otherRepoName, RelativeFilePath filePath)
+	{
+		Ensure.NotNull(repo);
+
+		return repo.SimilarRepoDiffs.TryGetValue(otherRepoName, out Dictionary<RelativeFilePath, DiffResult>? diffs)
+			&& diffs.TryGetValue(filePath, out DiffResult? found)
+				? found
+				: null;
+	}
+
 	private static DiffResult DiffSingleFile(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
 	{
 		if (repoA == repoB || !GitCli.IsRepository(repoA.LocalPath) || !GitCli.IsRepository(repoB.LocalPath))
@@ -1192,13 +1308,27 @@ internal sealed class ProjectDirector
 		return Differ.Instance.CreateLineDiffs(fileContents, otherFileContents, ignoreWhitespace: false, ignoreCase: false);
 	}
 
-	private static void RefreshFileDiff(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
+	/// <summary>
+	/// Re-diffs one file after its content changed, leaving the rest of the comparison alone.
+	/// </summary>
+	/// <param name="repoA">The base repository holding the comparison.</param>
+	/// <param name="repoB">The sibling the file is compared against.</param>
+	/// <param name="filePath">The file to re-diff.</param>
+	internal static void RefreshFileDiff(GitRepository repoA, GitRepository repoB, RelativeFilePath filePath)
 	{
 		DiffResult diff = DiffSingleFile(repoA, repoB, filePath);
 		if (repoB is GitHubRepository gitHubRepo)
 		{
 			FullyQualifiedGitHubRepoName otherRepoName = GetFullyQualifiedRepoName(gitHubRepo.OwnerName, gitHubRepo.RepoName);
-			repoA.SimilarRepoDiffs[otherRepoName][filePath] = diff;
+
+			// A whole-repository comparison can publish between the frame deciding to draw this
+			// file and the button being pressed, replacing the dictionary this was about to write
+			// into. The new comparison already read the file from disk, so dropping this update is
+			// the right answer rather than reinstating an entry that run left out.
+			if (repoA.SimilarRepoDiffs.TryGetValue(otherRepoName, out Dictionary<RelativeFilePath, DiffResult>? diffs))
+			{
+				diffs[filePath] = diff;
+			}
 		}
 		else
 		{
@@ -1326,7 +1456,12 @@ internal sealed class ProjectDirector
 		ImGui.TextUnformatted($"Comparing {Options.BaseRepo} vs {Options.CompareRepo}");
 		ImGui.SameLine();
 
-		DiffResult diff = repo.SimilarRepoDiffs[Options.CompareRepo][Options.CompareFile];
+		if (FindDiff(repo, Options.CompareRepo, Options.CompareFile) is not DiffResult diff)
+		{
+			ImGui.TextUnformatted(PendingComparisonMessage);
+			return;
+		}
+
 		ShowWholeDiffSummary(diff);
 
 		ImGui.PushStyleVar(ImGuiStyleVar.WindowPadding, new Vector2(0, 0));
