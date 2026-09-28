@@ -1,6 +1,9 @@
-## v1.3.3
+## v1.3.4-pre.1 (prerelease)
 
-No significant changes detected since v1.3.3.
+Changes since v1.3.3:
+
+- Bump Polyfill from 11.4.0 to 11.4.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
 ## v1.3.3 (patch)
 
@@ -37,6 +40,7 @@ Changes since v1.2.0:
 - fix: survive an unreadable directory while scanning the dev directory [patch] ([@Claude](https://github.com/Claude))
 - refactor: pin the startup token ordering ([@Claude](https://github.com/Claude))
 - refactor: pull the token rules out of the ImGui code, and test them ([@Claude](https://github.com/Claude))
+- feat: keep GitHub tokens in the OS secret store [minor] ([@Claude](https://github.com/Claude))
 - Use the collection and string assertions MSTest suggests ([@matt-edmondson](https://github.com/matt-edmondson))
 - Pull the rest of the propagation rule out of the popup, and cover it ([@matt-edmondson](https://github.com/matt-edmondson))
 - Move SourceLink off the version the NuGet audit fails the build on ([@matt-edmondson](https://github.com/matt-edmondson))
@@ -197,11 +201,15 @@ Changes since v1.0.0:
 - docs: broaden TAGS.md for better topic coverage ([@matt-edmondson](https://github.com/matt-edmondson))
 - docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
 - Fix build against ktsu.Sdk 2.27.0 ([@matt-edmondson](https://github.com/matt-edmondson))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .runsettings ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .editorconfig ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .gitattributes ([@KtsuTools](https://github.com/KtsuTools))
 - Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
+- Sync .github\workflows\dependabot-merge.yml ([@KtsuTools](https://github.com/KtsuTools))
 - Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 - Remove legacy build scripts ([@matt-edmondson](https://github.com/matt-edmondson))
 
 ## v1.0.42 (patch)
@@ -218,10 +226,13 @@ Changes since v1.0.41:
 Changes since v1.0.40:
 
 - Fix build against ktsu.Sdk 2.27.0 ([@matt-edmondson](https://github.com/matt-edmondson))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .runsettings ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .editorconfig ([@KtsuTools](https://github.com/KtsuTools))
 - Sync .gitattributes ([@KtsuTools](https://github.com/KtsuTools))
 - Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
+- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
+- Sync .github\workflows\dependabot-merge.yml ([@KtsuTools](https://github.com/KtsuTools))
 
 ## v1.0.40 (patch)
 
@@ -456,7 +467,6 @@ Changes since v1.0.5:
 Changes since v1.0.4:
 
 - Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
 
 ## v1.0.4 (patch)
 
@@ -507,13 +517,17 @@ Changes since v1.0.1-pre.1:
 
 ## v1.0.1-pre.1 (prerelease)
 
-No significant changes detected since v1.0.1.
+Changes since v1.0.0:
+
+- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Sync scripts\update-winget-manifests.ps1 ([@ktsu[bot]](https://github.com/ktsu[bot]))
 
 ## v1.0.0 (major)
 
 - Update package versions and target framework in project files ([@matt-edmondson](https://github.com/matt-edmondson))
 - Add CLAUDE.md for project guidance and architecture overview ([@matt-edmondson](https://github.com/matt-edmondson))
 - Refactor using directives and update type initializations for consistency ([@matt-edmondson](https://github.com/matt-edmondson))
+- Remove .github\workflows\project.yml ([@matt-edmondson](https://github.com/matt-edmondson))
 - Enhance CI/CD workflow and update winget manifest script for better project detection ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update .editorconfig, .gitignore, and .runsettings; modify PSBuild.psm1 for improved build and test processes ([@matt-edmondson](https://github.com/matt-edmondson))
 - Remove obsolete build configuration files and add copyright notices to source files ([@matt-edmondson](https://github.com/matt-edmondson))
@@ -528,10 +542,12 @@ No significant changes detected since v1.0.1.
 - Update ktsu.AppDataStorage and ImGui package versions ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update ktsu.Extensions and ImGui package versions ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update package references to latest versions and add ILCompiler and ILLink.Tasks ([@matt-edmondson](https://github.com/matt-edmondson))
+- Add Azure DevOps support and update GitHub client header ([@matt-edmondson](https://github.com/matt-edmondson))
 - Delete global.json ([@matt-edmondson](https://github.com/matt-edmondson))
 - Re-enable fetching and add a log queue to keep the length under control ([@matt-edmondson](https://github.com/matt-edmondson))
 - Integrate new library versions ([@matt-edmondson](https://github.com/matt-edmondson))
 - Integrate new library versions ([@matt-edmondson](https://github.com/matt-edmondson))
+- Delete .github/workflows/dotnet.yml ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update namespace to ktsu ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update namespace to ktsu ([@matt-edmondson](https://github.com/matt-edmondson))
 - Update namespace to ktsu ([@matt-edmondson](https://github.com/matt-edmondson))
@@ -575,6 +591,7 @@ No significant changes detected since v1.0.1.
 - Use DiffPlex to do textual diffing for similar files ([@matt-edmondson](https://github.com/matt-edmondson))
 - Add WIP version finding similar repos ([@matt-edmondson](https://github.com/matt-edmondson))
 - Take latest ImGuiApp ([@matt-edmondson](https://github.com/matt-edmondson))
+- Decouple GitHub functionality from generic Git functionality and introduce scanning disk for repos ([@matt-edmondson](https://github.com/matt-edmondson))
 - Change repo names to be qualified with the owners name, serialize the state of collapsible panels ([@matt-edmondson](https://github.com/matt-edmondson))
 - Early functionality ([@matt-edmondson](https://github.com/matt-edmondson))
 - Initial commit ([@matt-edmondson](https://github.com/matt-edmondson))
