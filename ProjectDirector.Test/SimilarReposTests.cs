@@ -385,7 +385,7 @@ public sealed class SimilarReposTests
 			Assert.IsFalse(repoA.SimilarReposPending, "The comparison should finish rather than stay pending.");
 			Assert.IsNotNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("shared.txt")));
 			Assert.IsNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("external")), "A gitlink has no content to diff.");
-			StringAssert.Contains(log.Single(), "Compared");
+			Assert.Contains("Compared", log.Single());
 		}
 		finally
 		{
@@ -415,7 +415,7 @@ public sealed class SimilarReposTests
 			Assert.IsFalse(repoA.SimilarReposPending, "An unreadable file must not leave the comparison pending.");
 			Assert.IsNotNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("shared.txt")), "The readable files are still compared.");
 			Assert.IsNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("locked.txt")));
-			Assert.IsTrue(log.Any(line => line.Contains("Left locked.txt out", StringComparison.Ordinal)), "The log should say which file was left out.");
+			Assert.Contains(line => line.Contains("Left locked.txt out", StringComparison.Ordinal), log, "The log should say which file was left out.");
 		}
 		finally
 		{
@@ -453,16 +453,13 @@ public sealed class SimilarReposTests
 		}
 	}
 
+	// Windows file systems cannot hold a file name containing '<' or '>'.
 	[TestMethod]
+	[OSCondition(ConditionMode.Exclude, OperatingSystems.Windows)]
 	public async Task AComparisonThatFailsStillEndsThePendingStateAndSaysWhy()
 	{
 		// A path that git tracks happily but the semantic path types refuse, which throws partway
 		// through building the comparison.
-		if (OperatingSystem.IsWindows())
-		{
-			Assert.Inconclusive("Windows file systems cannot hold a file name containing '<' or '>'.");
-		}
-
 		string a = CreateRepository([("a<b>.txt", "one\n")]);
 		string b = CreateRepository([("a<b>.txt", "two\n")]);
 
@@ -475,7 +472,7 @@ public sealed class SimilarReposTests
 
 			Assert.IsFalse(repoA.SimilarReposPending, "A failed comparison must not leave the panels pending.");
 			Assert.IsEmpty(repoA.SimilarRepoDiffs);
-			StringAssert.Contains(log.Single(), "failed");
+			Assert.Contains("failed", log.Single());
 		}
 		finally
 		{
