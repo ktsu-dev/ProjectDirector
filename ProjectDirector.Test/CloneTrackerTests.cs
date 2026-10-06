@@ -19,7 +19,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 public sealed class CloneTrackerTests
 {
 	private static FullyQualifiedLocalRepoPath LocalPath(string name) =>
-		FullyQualifiedLocalRepoPath.Create<FullyQualifiedLocalRepoPath>(Path.Combine(Path.GetTempPath(), "dev", name));
+		FullyQualifiedLocalRepoPath.Create<FullyQualifiedLocalRepoPath>(Path.Join(Path.GetTempPath(), "dev", name));
 
 	[TestMethod]
 	public void ASecondCloneIntoTheSameFolderIsRefusedWhileTheFirstRuns()
