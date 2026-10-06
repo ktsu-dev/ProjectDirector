@@ -714,7 +714,7 @@ internal sealed class ProjectDirector
 					// tick, on the render thread, rather than by the clone.
 					if (!Clones.IsInFlight(repo.LocalPath) && ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
 					{
-						_ = Clones.TryRun(repo.LocalPath, MakeClone(repo.RemotePath, repo.LocalPath, QueueGitLog));
+						_ = Clones.TryRun(repo.LocalPath, MakeClone(repo.RemotePath, repo.LocalPath, QueueGitLog), out _);
 					}
 				}
 				else

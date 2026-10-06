@@ -81,10 +81,10 @@ public sealed class CloneTrackerTests
 		CloneTracker clones = new();
 		using ManualResetEventSlim release = new();
 
-		Task? first = clones.TryRun(LocalPath("A"), release.Wait);
-		Assert.IsNotNull(first);
+		Assert.IsTrue(clones.TryRun(LocalPath("A"), release.Wait, out Task first));
 		Assert.IsTrue(clones.IsInFlight(LocalPath("A")));
-		Assert.IsNull(clones.TryRun(LocalPath("A"), () => Assert.Fail("A duplicate clone ran.")));
+		Assert.IsFalse(clones.TryRun(LocalPath("A"), () => Assert.Fail("A duplicate clone ran."), out Task refused));
+		Assert.IsTrue(refused.IsCompleted);
 
 		release.Set();
 		await first.ConfigureAwait(false);
@@ -98,8 +98,7 @@ public sealed class CloneTrackerTests
 	{
 		CloneTracker clones = new();
 
-		Task? run = clones.TryRun(LocalPath("A"), () => throw new InvalidOperationException("clone failed"));
-		Assert.IsNotNull(run);
+		Assert.IsTrue(clones.TryRun(LocalPath("A"), () => throw new InvalidOperationException("clone failed"), out Task run));
 		_ = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => run).ConfigureAwait(false);
 
 		Assert.IsFalse(clones.IsInFlight(LocalPath("A")));

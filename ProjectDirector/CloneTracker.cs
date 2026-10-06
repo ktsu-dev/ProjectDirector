@@ -71,18 +71,20 @@ internal sealed class CloneTracker
 	/// </summary>
 	/// <param name="localPath">The folder being cloned into.</param>
 	/// <param name="clone">The clone itself. It must not touch UI state.</param>
-	/// <returns>The running clone, or <see langword="null"/> if one was already running.</returns>
+	/// <param name="run">The running clone, or a completed task if the clone was refused.</param>
+	/// <returns><see langword="true"/> if the clone was started.</returns>
 	/// <remarks>
 	/// The clone is recorded as complete however it ends, so a clone that throws can be retried.
 	/// </remarks>
-	internal Task? TryRun(FullyQualifiedLocalRepoPath localPath, Action clone)
+	internal bool TryRun(FullyQualifiedLocalRepoPath localPath, Action clone, out Task run)
 	{
 		if (!TryStart(localPath))
 		{
-			return null;
+			run = Task.CompletedTask;
+			return false;
 		}
 
-		return Task.Run(() =>
+		run = Task.Run(() =>
 		{
 			try
 			{
@@ -93,6 +95,8 @@ internal sealed class CloneTracker
 				Complete(localPath);
 			}
 		});
+
+		return true;
 	}
 
 	/// <summary>
