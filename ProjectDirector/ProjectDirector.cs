@@ -56,6 +56,11 @@ internal sealed class ProjectDirector
 	/// </summary>
 	private GitHubOwnerName? OwnerPendingTokenPopup { get; set; }
 
+	/// <summary>
+	/// The clones running in the background, whose completion the tick hands to <see cref="RefreshPage"/>.
+	/// </summary>
+	private CloneTracker Clones { get; } = new();
+
 	// private ChatClient ChatClient { get; init; }
 
 	private static void Main(string[] _)
@@ -681,6 +686,11 @@ internal sealed class ProjectDirector
 				result => QueueLogIfAny(ApplyOwnerToken(owner, result)));
 		}
 
+		if (Clones.TakeRefreshRequest())
+		{
+			RefreshPage();
+		}
+
 		_ = PopupSetDevDirectory.ShowIfOpen();
 		_ = PopupAddNewGitHubOwner.ShowIfOpen();
 		_ = PopupSetGitHubOwnerToken.ShowIfOpen();
@@ -703,14 +713,27 @@ internal sealed class ProjectDirector
 			{
 				if (!Options.ClonedRepos.ContainsValue(Options.BaseRepo))
 				{
-					if (ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
+					bool cloning = Clones.IsInFlight(repo.LocalPath);
+					ImGui.BeginDisabled(cloning);
+					if (ImGui.Button(cloning ? "Cloning..." : "Clone", new Vector2(FieldWidth, 0)) && Clones.TryStart(repo.LocalPath))
 					{
-						Task.Run(() => QueueGitLog($"Cloning {repo.RemotePath}", GitCli.Run("clone", repo.RemotePath.ToString(), repo.LocalPath.ToString())))
-						.ContinueWith((t) => RefreshPage(),
-						new CancellationToken(),
-						TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
-						TaskScheduler.Current);
+						GitRemotePath remotePath = repo.RemotePath;
+						FullyQualifiedLocalRepoPath localPath = repo.LocalPath;
+						_ = Task.Run(() =>
+						{
+							try
+							{
+								QueueGitLog($"Cloning {remotePath}", GitCli.Run("clone", remotePath.ToString(), localPath.ToString()));
+							}
+							finally
+							{
+								// The page is refreshed by the next tick, on the render thread, not here.
+								Clones.Complete(localPath);
+							}
+						});
 					}
+
+					ImGui.EndDisabled();
 				}
 				else
 				{
