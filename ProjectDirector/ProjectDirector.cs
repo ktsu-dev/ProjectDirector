@@ -1012,8 +1012,11 @@ internal sealed class ProjectDirector
 
 			foreach (Repository remoteRepo in remoteRepos)
 			{
-				FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath(Options.DevDirectory / RelativeDirectoryPath.Create<RelativeDirectoryPath>(remoteRepo.FullName));
 				FullyQualifiedGitHubRepoName repoName = GetFullyQualifiedRepoName(remoteRepo);
+				FullyQualifiedLocalRepoPath localPath = ChooseSyncedLocalPath(
+					Options.Repos,
+					repoName,
+					MakeFullyQualifyLocalRepoPath(Options.DevDirectory / RelativeDirectoryPath.Create<RelativeDirectoryPath>(remoteRepo.FullName)));
 				GitRepository? repo = GitRepository.Create(GitRemotePath.Create<GitRemotePath>(remoteRepo.CloneUrl), localPath);
 				if (repo is not null)
 				{
@@ -1046,10 +1049,72 @@ internal sealed class ProjectDirector
 			changed |= UpdateClonedStatus(repo);
 		}
 
+		changed |= PruneStaleClonedRepos(Options.ClonedRepos, Options.Repos);
+
 		if (changed)
 		{
 			QueueSaveOptions();
 		}
+	}
+
+	/// <summary>
+	/// Chooses where a repository listed by a GitHub owner scan lives on disk.
+	/// </summary>
+	/// <param name="repos">The repositories already known.</param>
+	/// <param name="repoName">The repository the scan listed.</param>
+	/// <param name="conventionalPath">Where the scan would put it: <c>&lt;dev&gt;/&lt;owner&gt;/&lt;repo&gt;</c>.</param>
+	/// <returns>
+	/// The path the repository is already cloned at, if it is known and cloned, otherwise
+	/// <paramref name="conventionalPath"/>.
+	/// </returns>
+	/// <remarks>
+	/// Scan Dev Dir records a clone wherever it found it, often directly under the dev directory, and
+	/// adds the clone's owner to the owners it scans. An owner scan that then replaced the path with
+	/// the conventional one pointed the repository at a folder that does not exist, so every fetch of
+	/// it failed and its git actions acted on nothing.
+	/// </remarks>
+	internal static FullyQualifiedLocalRepoPath ChooseSyncedLocalPath(
+		IReadOnlyDictionary<FullyQualifiedGitHubRepoName, GitRepository> repos,
+		FullyQualifiedGitHubRepoName repoName,
+		FullyQualifiedLocalRepoPath conventionalPath)
+	{
+		Ensure.NotNull(repos);
+
+		return repos.TryGetValue(repoName, out GitRepository? existing)
+			&& !string.IsNullOrEmpty(existing.LocalPath)
+			&& GitCli.IsRepository(existing.LocalPath)
+			? existing.LocalPath
+			: conventionalPath;
+	}
+
+	/// <summary>
+	/// Removes the clones recorded at a path their repository no longer points at.
+	/// </summary>
+	/// <param name="clonedRepos">The recorded clones, keyed by path.</param>
+	/// <param name="repos">The repositories they belong to.</param>
+	/// <returns><see langword="true"/> if any entry was removed.</returns>
+	/// <remarks>
+	/// Cloned status is otherwise updated only by walking <paramref name="repos"/> at each
+	/// repository's current path, so an entry left at an old path is never visited and outlives the
+	/// change that moved its repository.
+	/// </remarks>
+	internal static bool PruneStaleClonedRepos(
+		Dictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> clonedRepos,
+		IReadOnlyDictionary<FullyQualifiedGitHubRepoName, GitRepository> repos)
+	{
+		Ensure.NotNull(clonedRepos);
+		Ensure.NotNull(repos);
+
+		List<FullyQualifiedLocalRepoPath> stale = [.. clonedRepos
+			.Where(entry => !repos.TryGetValue(entry.Value, out GitRepository? repo) || repo.LocalPath != entry.Key)
+			.Select(entry => entry.Key)];
+
+		foreach (FullyQualifiedLocalRepoPath path in stale)
+		{
+			_ = clonedRepos.Remove(path);
+		}
+
+		return stale.Count > 0;
 	}
 
 	[System.Diagnostics.CodeAnalysis.SuppressMessage("Style", "IDE0045:Convert to conditional expression", Justification = "<Pending>")]
