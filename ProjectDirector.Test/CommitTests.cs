@@ -224,6 +224,43 @@ public sealed class CommitTests
 	}
 
 	/// <summary>
+	/// A rename can also be reported in the worktree column: a file added with intent-to-add that
+	/// git matches against a deleted tracked file comes out as <c> R</c>. Its source path still
+	/// follows as a bare entry and must be consumed, or "ab cd.txt" is listed as "cd.txt".
+	/// </summary>
+	[TestMethod]
+	public void AWorktreeRenameReportsOnlyItsDestination()
+	{
+		// Arrange
+		string root = CreateCommittedRepository();
+
+		try
+		{
+			File.WriteAllText(Path.Join(root, "ab cd.txt"), "moved content\n");
+			Assert.IsTrue(GitCli.RunIn(root, "add", "--all").Succeeded);
+			Assert.IsTrue(GitCli.RunIn(root, "commit", "-m", "second").Succeeded);
+
+			File.Delete(Path.Join(root, "ab cd.txt"));
+			File.WriteAllText(Path.Join(root, "new.txt"), "moved content\n");
+			Assert.IsTrue(GitCli.RunIn(root, "add", "-N", "new.txt").Succeeded, "git add -N failed.");
+
+			GitResult status = GitCli.RunIn(root, "status", "--porcelain", "-z");
+			Assert.StartsWith(" R new.txt\0", status.Output, "git should report the rename in the worktree column.");
+
+			// Act
+			Collection<string> changes = GitCli.ListPendingChanges(root);
+
+			// Assert
+			Assert.AreEqual(1, changes.Count);
+			Assert.AreEqual("new.txt", changes[0]);
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
 	/// A path that is not a repository at all reports nothing rather than throwing, so the button
 	/// degrades to "nothing to commit" instead of taking the application down.
 	/// </summary>

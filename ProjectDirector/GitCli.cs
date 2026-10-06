@@ -213,8 +213,10 @@ internal static class GitCli
 
 			changes.Add(entry[3..]);
 
-			// A rename or copy is recorded against the index, in the first status character.
-			if (entry[0] is 'R' or 'C')
+			// A rename or copy is usually recorded against the index, in the first status character,
+			// but one detected in the worktree (an intent-to-add file matched against a deleted
+			// tracked one) is recorded in the second. Either way the source path follows.
+			if (entry[0] is 'R' or 'C' || entry[1] is 'R' or 'C')
 			{
 				++i;
 			}
