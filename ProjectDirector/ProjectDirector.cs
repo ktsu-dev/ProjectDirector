@@ -1450,7 +1450,7 @@ internal sealed class ProjectDirector
 		contents = string.Empty;
 		reason = null;
 
-		string fullPath = Path.Combine(repoPath, relativePath);
+		string fullPath = Path.Join(repoPath, relativePath);
 		if (Directory.Exists(fullPath))
 		{
 			return false;
