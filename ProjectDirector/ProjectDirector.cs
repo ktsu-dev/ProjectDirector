@@ -1171,27 +1171,24 @@ internal sealed class ProjectDirector
 			FullyQualifiedLocalRepoPath localPath = MakeFullyQualifyLocalRepoPath(AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(workingDirectory));
 			GitRemotePath remoteUrl = GitRemotePath.Create<GitRemotePath>(originUrl);
 
+			if (!GitHubRepository.TryParseRemote(originUrl, out string owner, out string name))
+			{
+				QueueLog($"[{DateTimeOffset.Now}] Skipped {workingDirectory}: origin {originUrl} is not a GitHub repository");
+				continue;
+			}
+
 			try
 			{
 				GitRepository? repo = GitRepository.Create(remoteUrl, localPath);
 				if (repo is GitHubRepository gitHubRepo)
 				{
-					List<string> remoteUrlParts = [];
-					foreach (ReadOnlySpan<char> part in remoteUrl.Split('/'))
-					{
-						remoteUrlParts.Add(part.ToString());
-					}
-					remoteUrlParts.Reverse();
-					if (remoteUrlParts.Count >= 2)
-					{
-						GitHubRepoName repoName = GitHubRepoName.Create<GitHubRepoName>(remoteUrlParts[0].RemoveSuffix(".git"));
-						GitHubOwnerName ownerName = GitHubOwnerName.Create<GitHubOwnerName>(remoteUrlParts[1]);
-						FullyQualifiedGitHubRepoName repoFullName = GetFullyQualifiedRepoName(ownerName, repoName);
-						Options.Repos[repoFullName] = gitHubRepo;
-						gitHubRepo.OwnerName = ownerName;
-						gitHubRepo.RepoName = repoName;
-						_ = Options.GitHubOwners.Add(gitHubRepo.OwnerName);
-					}
+					GitHubRepoName repoName = GitHubRepoName.Create<GitHubRepoName>(name);
+					GitHubOwnerName ownerName = GitHubOwnerName.Create<GitHubOwnerName>(owner);
+					FullyQualifiedGitHubRepoName repoFullName = GetFullyQualifiedRepoName(ownerName, repoName);
+					Options.Repos[repoFullName] = gitHubRepo;
+					gitHubRepo.OwnerName = ownerName;
+					gitHubRepo.RepoName = repoName;
+					_ = Options.GitHubOwners.Add(gitHubRepo.OwnerName);
 				}
 			}
 			catch (NotSupportedException)
