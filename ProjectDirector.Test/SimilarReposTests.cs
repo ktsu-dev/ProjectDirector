@@ -424,6 +424,74 @@ public sealed class SimilarReposTests
 		}
 	}
 
+	[TestMethod]
+	public async Task ASharedFileMissingFromTheWorkingTreeIsComparedAsEmpty()
+	{
+		string a = CreateRepository([("gone.txt", "a\n")]);
+		string b = CreateRepository([("gone.txt", "b\n")]);
+
+		try
+		{
+			AddNestedFile(a, "a\n");
+			AddNestedFile(b, "b\n");
+
+			// A tracked file can be absent on disk, directly or because its whole folder is.
+			File.Delete(Path.Join(b, "gone.txt"));
+			Directory.Delete(Path.Join(b, "sub"), recursive: true);
+
+			GitHubRepository repoA = Repository(a, "A");
+			await ProjectDirector.CompareSiblingsAsync(repoA, [repoA, Repository(b, "B")], _ => { }).ConfigureAwait(false);
+
+			Assert.IsFalse(repoA.SimilarReposPending);
+			Assert.IsNotEmpty(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("gone.txt"))!.DiffBlocks, "A missing file diffs against nothing.");
+			Assert.IsNotEmpty(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("sub/nested.txt"))!.DiffBlocks, "A file in a missing folder diffs against nothing.");
+		}
+		finally
+		{
+			TryDeleteDirectory(a);
+			TryDeleteDirectory(b);
+		}
+	}
+
+	[TestMethod]
+	public async Task AComparisonThatFailsStillEndsThePendingStateAndSaysWhy()
+	{
+		// A path that git tracks happily but the semantic path types refuse, which throws partway
+		// through building the comparison.
+		if (OperatingSystem.IsWindows())
+		{
+			Assert.Inconclusive("Windows file systems cannot hold a file name containing '<' or '>'.");
+		}
+
+		string a = CreateRepository([("a<b>.txt", "one\n")]);
+		string b = CreateRepository([("a<b>.txt", "two\n")]);
+
+		try
+		{
+			GitHubRepository repoA = Repository(a, "A");
+			ConcurrentQueue<string> log = [];
+
+			await ProjectDirector.CompareSiblingsAsync(repoA, [repoA, Repository(b, "B")], log.Enqueue).ConfigureAwait(false);
+
+			Assert.IsFalse(repoA.SimilarReposPending, "A failed comparison must not leave the panels pending.");
+			Assert.IsEmpty(repoA.SimilarRepoDiffs);
+			StringAssert.Contains(log.Single(), "failed");
+		}
+		finally
+		{
+			TryDeleteDirectory(a);
+			TryDeleteDirectory(b);
+		}
+	}
+
+	private static void AddNestedFile(string root, string contents)
+	{
+		_ = Directory.CreateDirectory(Path.Join(root, "sub"));
+		File.WriteAllText(Path.Join(root, "sub", "nested.txt"), contents);
+		Assert.IsTrue(GitCli.RunIn(root, "add", "--all").Succeeded, "git add failed.");
+		Assert.IsTrue(GitCli.RunIn(root, "commit", "-m", "Add nested file").Succeeded, "git commit failed.");
+	}
+
 	private static void AddGitlink(string root, string path)
 	{
 		string head = GitCli.RunIn(root, "rev-parse", "HEAD").OutputText;
