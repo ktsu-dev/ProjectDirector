@@ -251,7 +251,7 @@ public sealed class CommitTests
 			Collection<string> changes = GitCli.ListPendingChanges(root);
 
 			// Assert
-			Assert.AreEqual(1, changes.Count);
+			Assert.HasCount(1, changes);
 			Assert.AreEqual("new.txt", changes[0]);
 		}
 		finally
