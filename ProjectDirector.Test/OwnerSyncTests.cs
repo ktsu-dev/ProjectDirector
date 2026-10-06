@@ -34,7 +34,7 @@ public sealed class OwnerSyncTests
 	};
 
 	private static string CreateDevDirectory() =>
-		Directory.CreateDirectory(Path.Combine(Path.GetTempPath(), $"ktsu_pd_{Guid.NewGuid():N}")).FullName;
+		Directory.CreateDirectory(Path.Join(Path.GetTempPath(), $"ktsu_pd_{Guid.NewGuid():N}")).FullName;
 
 	[TestMethod]
 	public void AnOwnerScanKeepsTheFolderARepositoryIsAlreadyClonedIn()
@@ -42,7 +42,7 @@ public sealed class OwnerSyncTests
 		string dev = CreateDevDirectory();
 		try
 		{
-			string clone = Path.Combine(dev, "ProjectDirector");
+			string clone = Path.Join(dev, "ProjectDirector");
 			Assert.IsTrue(GitCli.Run("init", clone).Succeeded, "git init failed.");
 			Dictionary<FullyQualifiedGitHubRepoName, GitRepository> repos = new()
 			{
@@ -50,7 +50,7 @@ public sealed class OwnerSyncTests
 			};
 
 			FullyQualifiedLocalRepoPath chosen = ProjectDirector.ChooseSyncedLocalPath(
-				repos, Name("ProjectDirector"), LocalPath(Path.Combine(dev, "ktsu-dev", "ProjectDirector")));
+				repos, Name("ProjectDirector"), LocalPath(Path.Join(dev, "ktsu-dev", "ProjectDirector")));
 
 			Assert.AreEqual(LocalPath(clone), chosen);
 		}
@@ -63,7 +63,7 @@ public sealed class OwnerSyncTests
 	[TestMethod]
 	public void AnOwnerScanUsesTheConventionalFolderForAnUnknownRepository()
 	{
-		FullyQualifiedLocalRepoPath conventional = LocalPath(Path.Combine(Path.GetTempPath(), "ktsu-dev", "New"));
+		FullyQualifiedLocalRepoPath conventional = LocalPath(Path.Join(Path.GetTempPath(), "ktsu-dev", "New"));
 
 		FullyQualifiedLocalRepoPath chosen = ProjectDirector.ChooseSyncedLocalPath(new Dictionary<FullyQualifiedGitHubRepoName, GitRepository>(), Name("New"), conventional);
 
@@ -73,12 +73,12 @@ public sealed class OwnerSyncTests
 	[TestMethod]
 	public void AnOwnerScanUsesTheConventionalFolderWhenTheKnownOneIsNotAClone()
 	{
-		string missing = Path.Combine(Path.GetTempPath(), $"ktsu_pd_{Guid.NewGuid():N}", "Gone");
+		string missing = Path.Join(Path.GetTempPath(), $"ktsu_pd_{Guid.NewGuid():N}", "Gone");
 		Dictionary<FullyQualifiedGitHubRepoName, GitRepository> repos = new()
 		{
 			[Name("Gone")] = Repository(missing, "Gone"),
 		};
-		FullyQualifiedLocalRepoPath conventional = LocalPath(Path.Combine(Path.GetTempPath(), "ktsu-dev", "Gone"));
+		FullyQualifiedLocalRepoPath conventional = LocalPath(Path.Join(Path.GetTempPath(), "ktsu-dev", "Gone"));
 
 		FullyQualifiedLocalRepoPath chosen = ProjectDirector.ChooseSyncedLocalPath(repos, Name("Gone"), conventional);
 
@@ -88,8 +88,8 @@ public sealed class OwnerSyncTests
 	[TestMethod]
 	public void ACloneRecordedAtAPathItsRepositoryNoLongerUsesIsPruned()
 	{
-		string oldPath = Path.Combine(Path.GetTempPath(), "dev", "ProjectDirector");
-		string newPath = Path.Combine(Path.GetTempPath(), "dev", "ktsu-dev", "ProjectDirector");
+		string oldPath = Path.Join(Path.GetTempPath(), "dev", "ProjectDirector");
+		string newPath = Path.Join(Path.GetTempPath(), "dev", "ktsu-dev", "ProjectDirector");
 		Dictionary<FullyQualifiedGitHubRepoName, GitRepository> repos = new()
 		{
 			[Name("ProjectDirector")] = Repository(newPath, "ProjectDirector"),
@@ -108,7 +108,7 @@ public sealed class OwnerSyncTests
 	{
 		Dictionary<FullyQualifiedLocalRepoPath, FullyQualifiedGitHubRepoName> cloned = new()
 		{
-			[LocalPath(Path.Combine(Path.GetTempPath(), "dev", "Orphan"))] = Name("Orphan"),
+			[LocalPath(Path.Join(Path.GetTempPath(), "dev", "Orphan"))] = Name("Orphan"),
 		};
 
 		Assert.IsTrue(ProjectDirector.PruneStaleClonedRepos(cloned, new Dictionary<FullyQualifiedGitHubRepoName, GitRepository>()));
@@ -118,7 +118,7 @@ public sealed class OwnerSyncTests
 	[TestMethod]
 	public void ACloneRecordedAtItsRepositorysPathIsKept()
 	{
-		string path = Path.Combine(Path.GetTempPath(), "dev", "ProjectDirector");
+		string path = Path.Join(Path.GetTempPath(), "dev", "ProjectDirector");
 		Dictionary<FullyQualifiedGitHubRepoName, GitRepository> repos = new()
 		{
 			[Name("ProjectDirector")] = Repository(path, "ProjectDirector"),
