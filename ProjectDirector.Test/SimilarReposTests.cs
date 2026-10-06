@@ -364,6 +364,74 @@ public sealed class SimilarReposTests
 			() => ProjectDirector.RefreshFileDiff(repoA, other, RelativeFilePath.Create<RelativeFilePath>("shared.txt")));
 	}
 
+	[TestMethod]
+	public async Task SiblingsSharingASubmodulePathCompareWithTheGitlinkLeftOut()
+	{
+		string a = CreateRepository([("shared.txt", "one\n")]);
+		string b = CreateRepository([("shared.txt", "two\n")]);
+
+		try
+		{
+			// A submodule is tracked as a gitlink, and its path is a directory on disk even before
+			// the submodule is initialised. Reading it as a file threw out of the background task.
+			AddGitlink(a, "external");
+			AddGitlink(b, "external");
+
+			GitHubRepository repoA = Repository(a, "A");
+			ConcurrentQueue<string> log = [];
+
+			await ProjectDirector.CompareSiblingsAsync(repoA, [repoA, Repository(b, "B")], log.Enqueue).ConfigureAwait(false);
+
+			Assert.IsFalse(repoA.SimilarReposPending, "The comparison should finish rather than stay pending.");
+			Assert.IsNotNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("shared.txt")));
+			Assert.IsNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("external")), "A gitlink has no content to diff.");
+			StringAssert.Contains(log.Single(), "Compared");
+		}
+		finally
+		{
+			TryDeleteDirectory(a);
+			TryDeleteDirectory(b);
+		}
+	}
+
+	[TestMethod]
+	public async Task ASharedFileThatCannotBeReadIsLeftOutAndLogged()
+	{
+		string a = CreateRepository([("shared.txt", "one\n"), ("locked.txt", "a\n")]);
+		string b = CreateRepository([("shared.txt", "two\n"), ("locked.txt", "b\n")]);
+
+		try
+		{
+			GitHubRepository repoA = Repository(a, "A");
+			ConcurrentQueue<string> log = [];
+
+			// An exclusive handle stands in for a file another process holds open, and unlike a
+			// permission bit it is refused under root as well.
+			using (new FileStream(Path.Join(b, "locked.txt"), FileMode.Open, FileAccess.ReadWrite, FileShare.None))
+			{
+				await ProjectDirector.CompareSiblingsAsync(repoA, [repoA, Repository(b, "B")], log.Enqueue).ConfigureAwait(false);
+			}
+
+			Assert.IsFalse(repoA.SimilarReposPending, "An unreadable file must not leave the comparison pending.");
+			Assert.IsNotNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("shared.txt")), "The readable files are still compared.");
+			Assert.IsNull(ProjectDirector.FindDiff(repoA, Name("B"), RelativeFilePath.Create<RelativeFilePath>("locked.txt")));
+			Assert.IsTrue(log.Any(line => line.Contains("Left locked.txt out", StringComparison.Ordinal)), "The log should say which file was left out.");
+		}
+		finally
+		{
+			TryDeleteDirectory(a);
+			TryDeleteDirectory(b);
+		}
+	}
+
+	private static void AddGitlink(string root, string path)
+	{
+		string head = GitCli.RunIn(root, "rev-parse", "HEAD").OutputText;
+		Assert.IsTrue(GitCli.RunIn(root, "update-index", "--add", "--cacheinfo", $"160000,{head},{path}").Succeeded, "Adding the gitlink failed.");
+		Assert.IsTrue(GitCli.RunIn(root, "commit", "-m", "Add submodule").Succeeded, "Committing the gitlink failed.");
+		_ = Directory.CreateDirectory(Path.Join(root, path));
+	}
+
 	private static string CreateRepository(IEnumerable<(string RelativePath, string Contents)> files)
 	{
 		string root = Path.Join(Path.GetTempPath(), $"ktsu_pd_similar_{Guid.NewGuid():N}");

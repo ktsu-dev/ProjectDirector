@@ -1336,7 +1336,24 @@ internal sealed class ProjectDirector
 		int token = repo.RequestSimilarRepoDiffs();
 		Task task = new(() =>
 		{
-			Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> diffs = DiffAgainstAll(repo, others);
+			Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> diffs;
+			try
+			{
+				diffs = DiffAgainstAll(repo, others, log);
+			}
+			catch (Exception e) when (e is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+			{
+				// Nothing observes this task, so a throw out of it would leave the panels on
+				// "Comparing repositories..." for good. Publishing an empty answer ends the pending
+				// state, and the log says why there is nothing to show.
+				if (repo.TryApplySimilarRepoDiffs(token, []))
+				{
+					log($"[{DateTimeOffset.Now}] Comparing {repo.RemotePath} failed: {e.Message}");
+				}
+
+				return;
+			}
+
 			if (repo.TryApplySimilarRepoDiffs(token, diffs))
 			{
 				log($"[{DateTimeOffset.Now}] Compared {repo.RemotePath} against {others.Count} other {(others.Count == 1 ? "repository" : "repositories")}");
@@ -1352,6 +1369,7 @@ internal sealed class ProjectDirector
 	/// </summary>
 	/// <param name="repo">The repository every sibling is compared against.</param>
 	/// <param name="others">The siblings, paired with the names to key the result by.</param>
+	/// <param name="log">Reports each shared file that could not be read and so was left out.</param>
 	/// <returns>The diffs for each sibling.</returns>
 	/// <remarks>
 	/// The base repository's tracked-file list is read once for the whole run rather than once per
@@ -1361,7 +1379,8 @@ internal sealed class ProjectDirector
 	/// </remarks>
 	internal static Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> DiffAgainstAll(
 		GitRepository repo,
-		IEnumerable<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others)
+		IEnumerable<KeyValuePair<FullyQualifiedGitHubRepoName, GitRepository>> others,
+		Action<string>? log = null)
 	{
 		Collection<string> trackedFiles = GitCli.IsRepository(repo.LocalPath)
 			? GitCli.ListTrackedFiles(repo.LocalPath)
@@ -1370,13 +1389,13 @@ internal sealed class ProjectDirector
 		Dictionary<FullyQualifiedGitHubRepoName, Dictionary<RelativeFilePath, DiffResult>> diffs = [];
 		foreach ((FullyQualifiedGitHubRepoName otherRepoName, GitRepository otherRepo) in others)
 		{
-			diffs[otherRepoName] = DiffRepos(repo, trackedFiles, otherRepo);
+			diffs[otherRepoName] = DiffRepos(repo, trackedFiles, otherRepo, log);
 		}
 
 		return diffs;
 	}
 
-	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, IEnumerable<string> trackedFilesA, GitRepository repoB)
+	private static Dictionary<RelativeFilePath, DiffResult> DiffRepos(GitRepository repoA, IEnumerable<string> trackedFilesA, GitRepository repoB, Action<string>? log)
 	{
 		Dictionary<RelativeFilePath, DiffResult> diffs = [];
 
@@ -1389,12 +1408,22 @@ internal sealed class ProjectDirector
 			.Intersect(GitCli.ListTrackedFiles(repoB.LocalPath))
 			.ToCollection();
 
-		Dictionary<string, string> fileContents = matches.ToDictionary(x => x, x => ReadFileOrEmpty(repoA.LocalPath, x));
-		Dictionary<string, string> otherFileContents = matches.ToDictionary(x => x, x => ReadFileOrEmpty(repoB.LocalPath, x));
-
 		foreach (string match in matches)
 		{
-			diffs[RelativeFilePath.Create<RelativeFilePath>(match)] = Differ.Instance.CreateLineDiffs(fileContents[match], otherFileContents[match], ignoreWhitespace: false, ignoreCase: false);
+			// A submodule's gitlink is tracked but is a directory on disk, as is a tracked link to
+			// one. Neither has content to diff, so the pair is left out rather than read.
+			if (!TryReadTrackedFile(repoA.LocalPath, match, out string fileContents, out string? reason)
+				|| !TryReadTrackedFile(repoB.LocalPath, match, out string otherFileContents, out reason))
+			{
+				if (reason is not null)
+				{
+					log?.Invoke($"[{DateTimeOffset.Now}] Left {match} out of the comparison with {repoB.RemotePath}: {reason}");
+				}
+
+				continue;
+			}
+
+			diffs[RelativeFilePath.Create<RelativeFilePath>(match)] = Differ.Instance.CreateLineDiffs(fileContents, otherFileContents, ignoreWhitespace: false, ignoreCase: false);
 		}
 
 		return diffs;
@@ -1404,20 +1433,53 @@ internal sealed class ProjectDirector
 	/// Reads a tracked file from a working tree, treating anything missing on disk as empty. A file
 	/// can be tracked and still be absent, and a diff against nothing is the useful answer.
 	/// </summary>
-	private static string ReadFileOrEmpty(string repoPath, string relativePath)
+	/// <param name="repoPath">The working tree.</param>
+	/// <param name="relativePath">The tracked path, relative to <paramref name="repoPath"/>.</param>
+	/// <param name="contents">The file's text, or empty when it is missing or cannot be read.</param>
+	/// <param name="reason">
+	/// Why an existing file could not be read, or <see langword="null"/> when there is nothing to
+	/// report: the file was read, was missing, or is a directory.
+	/// </param>
+	/// <returns>Whether there is file content to diff, which a directory never has.</returns>
+	/// <remarks>
+	/// Every failure is answered rather than thrown. The whole-repository comparison runs on a task
+	/// nobody observes, and the single-file re-diff runs on the render thread.
+	/// </remarks>
+	private static bool TryReadTrackedFile(string repoPath, string relativePath, out string contents, out string? reason)
 	{
+		contents = string.Empty;
+		reason = null;
+
+		string fullPath = Path.Combine(repoPath, relativePath);
+		if (Directory.Exists(fullPath))
+		{
+			return false;
+		}
+
 		try
 		{
-			return File.ReadAllText(Path.Combine(repoPath, relativePath));
+			contents = File.ReadAllText(fullPath);
+			return true;
 		}
 		catch (FileNotFoundException)
 		{
-			return string.Empty;
+			return true;
 		}
 		catch (DirectoryNotFoundException)
 		{
-			return string.Empty;
+			return true;
 		}
+		catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+		{
+			reason = e.Message;
+			return false;
+		}
+	}
+
+	private static string ReadFileOrEmpty(string repoPath, string relativePath)
+	{
+		_ = TryReadTrackedFile(repoPath, relativePath, out string contents, out _);
+		return contents;
 	}
 
 	/// <summary>
