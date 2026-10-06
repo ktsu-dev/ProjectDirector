@@ -2,8 +2,10 @@
 
 namespace ktsu.ProjectDirector;
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
+using System.Threading.Tasks;
 
 /// <summary>
 /// Tracks the clones running in the background and hands their completion back to the render thread.
@@ -61,6 +63,49 @@ internal sealed class CloneTracker
 		}
 
 		_ = Interlocked.Exchange(ref refreshRequested, 1);
+	}
+
+	/// <summary>
+	/// Runs <paramref name="clone"/> on the thread pool, unless a clone into <paramref name="localPath"/>
+	/// is already running.
+	/// </summary>
+	/// <param name="localPath">The folder being cloned into.</param>
+	/// <param name="clone">The clone itself. It must not touch UI state.</param>
+	/// <returns>The running clone, or <see langword="null"/> if one was already running.</returns>
+	/// <remarks>
+	/// The clone is recorded as complete however it ends, so a clone that throws can be retried.
+	/// </remarks>
+	internal Task? TryRun(FullyQualifiedLocalRepoPath localPath, Action clone)
+	{
+		if (!TryStart(localPath))
+		{
+			return null;
+		}
+
+		return Task.Run(() =>
+		{
+			try
+			{
+				clone();
+			}
+			finally
+			{
+				Complete(localPath);
+			}
+		});
+	}
+
+	/// <summary>
+	/// Calls <paramref name="refresh"/> if a clone has completed since the last call. Call from the
+	/// render thread.
+	/// </summary>
+	/// <param name="refresh">Refreshes the page.</param>
+	internal void RefreshIfRequested(Action refresh)
+	{
+		if (TakeRefreshRequest())
+		{
+			refresh();
+		}
 	}
 
 	/// <summary>

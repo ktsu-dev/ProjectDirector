@@ -2,7 +2,9 @@
 
 namespace ktsu.ProjectDirector.Test;
 
+using System;
 using System.IO;
+using System.Threading;
 using System.Threading.Tasks;
 
 using Microsoft.VisualStudio.TestTools.UnitTesting;
@@ -71,5 +73,102 @@ public sealed class CloneTrackerTests
 
 		Assert.IsTrue(clones.TakeRefreshRequest());
 		Assert.IsFalse(clones.TakeRefreshRequest());
+	}
+
+	[TestMethod]
+	public async Task TryRunRefusesASecondCloneWhileTheFirstRunsAndRequestsARefreshWhenItEnds()
+	{
+		CloneTracker clones = new();
+		using ManualResetEventSlim release = new();
+
+		Task? first = clones.TryRun(LocalPath("A"), release.Wait);
+		Assert.IsNotNull(first);
+		Assert.IsTrue(clones.IsInFlight(LocalPath("A")));
+		Assert.IsNull(clones.TryRun(LocalPath("A"), () => Assert.Fail("A duplicate clone ran.")));
+
+		release.Set();
+		await first.ConfigureAwait(false);
+
+		Assert.IsFalse(clones.IsInFlight(LocalPath("A")));
+		Assert.IsTrue(clones.TakeRefreshRequest());
+	}
+
+	[TestMethod]
+	public async Task ACloneThatThrowsIsStillRecordedAsComplete()
+	{
+		CloneTracker clones = new();
+
+		Task? run = clones.TryRun(LocalPath("A"), () => throw new InvalidOperationException("clone failed"));
+		Assert.IsNotNull(run);
+		_ = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => run).ConfigureAwait(false);
+
+		Assert.IsFalse(clones.IsInFlight(LocalPath("A")));
+		Assert.IsTrue(clones.TakeRefreshRequest());
+	}
+
+	[TestMethod]
+	public void RefreshIfRequestedRefreshesOnceForACompletedClone()
+	{
+		CloneTracker clones = new();
+		int refreshes = 0;
+
+		clones.RefreshIfRequested(() => refreshes++);
+		Assert.AreEqual(0, refreshes);
+
+		clones.Complete(LocalPath("A"));
+		clones.RefreshIfRequested(() => refreshes++);
+		clones.RefreshIfRequested(() => refreshes++);
+
+		Assert.AreEqual(1, refreshes);
+	}
+
+	[TestMethod]
+	public void MakeCloneClonesTheRemoteIntoTheFolderAndLogsTheResult()
+	{
+		string root = Path.Join(Path.GetTempPath(), $"ktsu_pd_{Guid.NewGuid():N}");
+		try
+		{
+			string origin = Path.Join(root, "origin");
+			string clone = Path.Join(root, "clone");
+			Assert.IsTrue(GitCli.Run("init", origin).Succeeded, "git init failed.");
+			string? description = null;
+			GitResult? result = null;
+
+			ProjectDirector.MakeClone(
+				GitRemotePath.Create<GitRemotePath>(origin),
+				FullyQualifiedLocalRepoPath.Create<FullyQualifiedLocalRepoPath>(clone),
+				(d, r) => (description, result) = (d, r))();
+
+			Assert.AreEqual($"Cloning {origin}", description);
+			Assert.IsNotNull(result);
+			Assert.IsTrue(result.Succeeded);
+			Assert.IsTrue(GitCli.IsRepository(clone));
+		}
+		finally
+		{
+			TryDeleteDirectory(root);
+		}
+	}
+
+	private static void TryDeleteDirectory(string path)
+	{
+		try
+		{
+			// Git marks objects read-only, which blocks a plain recursive delete on Windows.
+			foreach (string file in Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories))
+			{
+				File.SetAttributes(file, FileAttributes.Normal);
+			}
+
+			Directory.Delete(path, recursive: true);
+		}
+		catch (IOException)
+		{
+			// A best-effort cleanup of a temp directory is not worth failing a test over.
+		}
+		catch (UnauthorizedAccessException)
+		{
+			// As above.
+		}
 	}
 }
