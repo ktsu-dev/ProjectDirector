@@ -1,12 +1,11 @@
-## v1.3.5 (patch)
+## v1.3.6 (patch)
 
-Changes since v1.3.4:
+Changes since v1.3.5:
 
-- Use the MSTest assertions and OSCondition the analyzers prefer in the new tests ([@Claude](https://github.com/Claude))
-- Cover a missing tracked file and a failed comparison in SimilarReposTests ([@Claude](https://github.com/Claude))
-- Build the tracked-file path with Path.Join ([@Claude](https://github.com/Claude))
-- Use Assert.HasCount in the worktree-rename test (MSTEST0037) ([@Claude](https://github.com/Claude))
-- Finish a sibling comparison when a shared entry cannot be read [patch] ([@Claude](https://github.com/Claude))
-- Recognise SSH GitHub remotes when scanning the dev directory [patch] ([@Claude](https://github.com/Claude))
-- Consume a rename's source path when git reports it in the worktree column [patch] ([@Claude](https://github.com/Claude))
+- Return whether TryRun started the clone instead of a null task ([@Claude](https://github.com/Claude))
+- Run the clone and the refresh handoff through CloneTracker ([@Claude](https://github.com/Claude))
+- Build the test paths with Path.Join ([@Claude](https://github.com/Claude))
+- Build the test paths with Path.Join ([@Claude](https://github.com/Claude))
+- Refresh after a clone on the render thread, and allow one clone per folder [patch] ([@Claude](https://github.com/Claude))
+- Keep a cloned repository's folder when an owner scan lists it [patch] ([@Claude](https://github.com/Claude))
 
