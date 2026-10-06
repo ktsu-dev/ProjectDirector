@@ -56,6 +56,11 @@ internal sealed class ProjectDirector
 	/// </summary>
 	private GitHubOwnerName? OwnerPendingTokenPopup { get; set; }
 
+	/// <summary>
+	/// The clones running in the background, whose completion the tick hands to <see cref="RefreshPage"/>.
+	/// </summary>
+	private CloneTracker Clones { get; } = new();
+
 	// private ChatClient ChatClient { get; init; }
 
 	private static void Main(string[] _)
@@ -681,6 +686,8 @@ internal sealed class ProjectDirector
 				result => QueueLogIfAny(ApplyOwnerToken(owner, result)));
 		}
 
+		Clones.RefreshIfRequested(RefreshPage);
+
 		_ = PopupSetDevDirectory.ShowIfOpen();
 		_ = PopupAddNewGitHubOwner.ShowIfOpen();
 		_ = PopupSetGitHubOwnerToken.ShowIfOpen();
@@ -703,13 +710,11 @@ internal sealed class ProjectDirector
 			{
 				if (!Options.ClonedRepos.ContainsValue(Options.BaseRepo))
 				{
-					if (ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
+					// The button is hidden while its clone runs, and the page is refreshed by the next
+					// tick, on the render thread, rather than by the clone.
+					if (!Clones.IsInFlight(repo.LocalPath) && ImGui.Button("Clone", new Vector2(FieldWidth, 0)))
 					{
-						Task.Run(() => QueueGitLog($"Cloning {repo.RemotePath}", GitCli.Run("clone", repo.RemotePath.ToString(), repo.LocalPath.ToString())))
-						.ContinueWith((t) => RefreshPage(),
-						new CancellationToken(),
-						TaskContinuationOptions.OnlyOnRanToCompletion | TaskContinuationOptions.ExecuteSynchronously,
-						TaskScheduler.Current);
+						_ = Clones.TryRun(repo.LocalPath, MakeClone(repo.RemotePath, repo.LocalPath, QueueGitLog), out _);
 					}
 				}
 				else
@@ -793,6 +798,16 @@ internal sealed class ProjectDirector
 			}
 		}
 	}
+
+	/// <summary>
+	/// Makes the clone the Clone button runs in the background.
+	/// </summary>
+	/// <param name="remotePath">The repository to clone.</param>
+	/// <param name="localPath">The folder to clone it into.</param>
+	/// <param name="log">Records the result. Called from the thread the clone runs on.</param>
+	/// <returns>The clone, which touches no UI state.</returns>
+	internal static Action MakeClone(GitRemotePath remotePath, FullyQualifiedLocalRepoPath localPath, Action<string, GitResult> log) =>
+		() => log($"Cloning {remotePath}", GitCli.Run("clone", remotePath.ToString(), localPath.ToString()));
 
 	private void RefreshPage()
 	{
