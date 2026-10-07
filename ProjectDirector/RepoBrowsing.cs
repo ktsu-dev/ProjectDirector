@@ -28,7 +28,7 @@ internal static class RepoBrowsing
 	{
 		try
 		{
-			return [.. Directory.EnumerateFileSystemEntries(Path.Combine(repoRoot, browsePath))
+			return [.. Directory.EnumerateFileSystemEntries(Path.Join(repoRoot, browsePath))
 				.Select(entry => RelativePath.Create<RelativePath>(Path.GetRelativePath(repoRoot, entry)))];
 		}
 		catch (DirectoryNotFoundException)
@@ -45,7 +45,7 @@ internal static class RepoBrowsing
 	/// <param name="repoRoots">The repositories it may have come from.</param>
 	/// <returns><see langword="true"/> when it is a folder in at least one of them.</returns>
 	internal static bool IsDirectory(RelativePath entry, params string[] repoRoots) =>
-		repoRoots.Any(root => Directory.Exists(Path.Combine(root, entry)));
+		repoRoots.Any(root => Directory.Exists(Path.Join(root, entry)));
 
 	/// <summary>
 	/// Copies an entry that exists in one repository into the same place in another.
@@ -57,8 +57,8 @@ internal static class RepoBrowsing
 	/// <remarks>A folder is created empty, as the browser always has, rather than copied with its contents.</remarks>
 	internal static string? Copy(RelativePath entry, string fromRoot, string toRoot)
 	{
-		string source = Path.Combine(fromRoot, entry);
-		string destination = Path.Combine(toRoot, entry);
+		string source = Path.Join(fromRoot, entry);
+		string destination = Path.Join(toRoot, entry);
 
 		try
 		{
@@ -89,7 +89,7 @@ internal static class RepoBrowsing
 	/// <remarks>A folder is only deleted when it is empty, so one click cannot take a tree with it.</remarks>
 	internal static string? Delete(RelativePath entry, string repoRoot)
 	{
-		string path = Path.Combine(repoRoot, entry);
+		string path = Path.Join(repoRoot, entry);
 
 		try
 		{
