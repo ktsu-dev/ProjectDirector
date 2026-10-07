@@ -146,6 +146,16 @@ public sealed class RepoBrowsingTests
 	}
 
 	[TestMethod]
+	public void Delete_ANestedFile_RemovesOnlyThatFile()
+	{
+		string? failure = RepoBrowsing.Delete(Entry(Path.Join("src", "a.cs")), _repoA);
+
+		Assert.IsNull(failure);
+		Assert.IsFalse(File.Exists(Path.Join(_repoA, "src", "a.cs")));
+		Assert.IsTrue(Directory.Exists(Path.Join(_repoA, "src", "Inner")));
+	}
+
+	[TestMethod]
 	public void Delete_AFolderWithContents_ReportsTheFailureAndKeepsIt()
 	{
 		string? failure = RepoBrowsing.Delete(Entry("src"), _repoA);
