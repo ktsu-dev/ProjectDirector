@@ -1782,12 +1782,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.ArrowButton($"DiffTakeLeft{i}", ImGuiDir.Right))
 			{
-				List<string> newLines = [];
-				AddPrologueForDeletedLines(diff, block, newLines);
-				AddDeletedLines(diff, block, newLines);
-				AddEpilogueForDeletedLines(diff, block, newLines);
-				string newText = string.Join(Environment.NewLine, newLines);
-				File.WriteAllText(Path.Combine(repoB.LocalPath, Options.CompareFile), newText);
+				DiffTake.WriteLinesPreservingFormat(Path.Combine(repoB.LocalPath, Options.CompareFile), DiffTake.TakeOldIntoNew(diff, block));
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
 
@@ -1817,25 +1812,6 @@ internal sealed class ProjectDirector
 		}
 
 		ScrollLeft = new(ImGui.GetScrollX(), ImGui.GetScrollY());
-
-		void AddPrologueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
-		{
-			int endIndex = block.InsertStartB;
-			newLines.AddRange(diff.PiecesNew.Take(endIndex));
-		}
-
-		void AddEpilogueForDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
-		{
-			int startIndex = block.InsertStartB + block.InsertCountB;
-			newLines.AddRange(diff.PiecesNew.Skip(startIndex));
-		}
-
-		void AddDeletedLines(DiffResult diff, DiffBlock block, List<string> newLines)
-		{
-			int startIndex = block.DeleteStartA;
-			int endIndex = startIndex + block.DeleteCountA;
-			newLines.AddRange(diff.PiecesOld.Skip(startIndex).Take(endIndex - startIndex));
-		}
 
 		void ShowPrologueForDeletedLines(DiffResult diff, DiffBlock block)
 		{
@@ -1877,12 +1853,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.ArrowButton($"DiffTakeRight{i}", ImGuiDir.Left))
 			{
-				List<string> newLines = [];
-				AddPrologueForNewLines(diff, block, newLines);
-				AddNewLines(diff, block, newLines);
-				AddEpilogueForNewLines(diff, block, newLines);
-				string newText = string.Join(Environment.NewLine, newLines);
-				File.WriteAllText(Path.Combine(repoA.LocalPath, Options.CompareFile), newText);
+				DiffTake.WriteLinesPreservingFormat(Path.Combine(repoA.LocalPath, Options.CompareFile), DiffTake.TakeNewIntoOld(diff, block));
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
 
@@ -1912,25 +1883,6 @@ internal sealed class ProjectDirector
 		}
 
 		ScrollRight = new(ImGui.GetScrollX(), ImGui.GetScrollY());
-
-		void AddPrologueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
-		{
-			int endIndex = block.DeleteStartA;
-			newLines.AddRange(diff.PiecesOld.Take(endIndex));
-		}
-
-		void AddNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
-		{
-			int startIndex = block.InsertStartB;
-			int endIndex = startIndex + block.InsertCountB;
-			newLines.AddRange(diff.PiecesNew.Skip(startIndex).Take(endIndex - startIndex));
-		}
-
-		void AddEpilogueForNewLines(DiffResult diff, DiffBlock block, List<string> newLines)
-		{
-			int startIndex = block.DeleteStartA + block.DeleteCountA;
-			newLines.AddRange(diff.PiecesOld.Skip(startIndex));
-		}
 
 		void ShowPrologueForNewLines(DiffResult diff, DiffBlock block)
 		{
