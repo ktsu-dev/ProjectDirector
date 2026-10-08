@@ -1782,7 +1782,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.ArrowButton($"DiffTakeLeft{i}", ImGuiDir.Right))
 			{
-				DiffTake.WriteLinesPreservingFormat(Path.Combine(repoB.LocalPath, Options.CompareFile), DiffTake.TakeOldIntoNew(diff, block));
+				DiffTake.WriteLinesPreservingFormat(Path.Join(repoB.LocalPath, Options.CompareFile), DiffTake.TakeOldIntoNew(diff, block));
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
 
@@ -1853,7 +1853,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.ArrowButton($"DiffTakeRight{i}", ImGuiDir.Left))
 			{
-				DiffTake.WriteLinesPreservingFormat(Path.Combine(repoA.LocalPath, Options.CompareFile), DiffTake.TakeNewIntoOld(diff, block));
+				DiffTake.WriteLinesPreservingFormat(Path.Join(repoA.LocalPath, Options.CompareFile), DiffTake.TakeNewIntoOld(diff, block));
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
 
