@@ -3,12 +3,16 @@
 namespace ktsu.ProjectDirector.Test;
 
 using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
+using ktsu.Semantics.Paths;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 using Octokit;
@@ -38,7 +42,7 @@ public sealed class OwnerFetchTests
 	}
 
 	/// <summary>
-	/// Serves every request with one status until disposed.
+	/// Answers each request with whatever the route function returns for its path, until disposed.
 	/// </summary>
 	private sealed class FakeGitHub : IDisposable
 	{
@@ -47,6 +51,11 @@ public sealed class OwnerFetchTests
 		private readonly Task loop;
 
 		internal FakeGitHub(int status, string? rateLimitRemaining = null)
+			: this(_ => (status, """{"message":"refused by the fake"}"""), rateLimitRemaining)
+		{
+		}
+
+		internal FakeGitHub(Func<string, (int Status, string Body)> route, string? rateLimitRemaining = null)
 		{
 			int port = FreePort();
 			BaseAddress = new Uri($"http://127.0.0.1:{port}/");
@@ -66,6 +75,7 @@ public sealed class OwnerFetchTests
 						return;
 					}
 
+					(int status, string json) = route(context.Request.Url!.AbsolutePath);
 					context.Response.StatusCode = status;
 					context.Response.ContentType = "application/json";
 					if (rateLimitRemaining is not null)
@@ -75,7 +85,7 @@ public sealed class OwnerFetchTests
 						context.Response.Headers["X-RateLimit-Reset"] = "1999999999";
 					}
 
-					byte[] body = Encoding.UTF8.GetBytes("""{"message":"refused by the fake"}""");
+					byte[] body = Encoding.UTF8.GetBytes(json);
 					await context.Response.OutputStream.WriteAsync(body).ConfigureAwait(false);
 					context.Response.Close();
 				}
@@ -123,5 +133,40 @@ public sealed class OwnerFetchTests
 
 		Assert.IsNotNull(result.Failure);
 		Assert.IsNull(result.Owner);
+	}
+
+	private static string RepoJson(string owner, string name) =>
+		$$$"""{"id":1,"name":"{{{name}}}","full_name":"{{{owner}}}/{{{name}}}","clone_url":"https://github.com/{{{owner}}}/{{{name}}}.git","owner":{"login":"{{{owner}}}","id":1}}""";
+
+	/// <summary>
+	/// The path that is not an error: an organization's account, its own listing and its org listing
+	/// are all read, and every repository lands in the known repositories under the dev directory.
+	/// </summary>
+	[TestMethod]
+	public void AnOrganizationsRepositoriesAreReadAndRecorded()
+	{
+		using FakeGitHub fake = new(path => path switch
+		{
+			_ when path.EndsWith("/users/ktsu-dev", StringComparison.Ordinal) => (200, """{"login":"ktsu-dev","id":1,"type":"Organization"}"""),
+			_ when path.EndsWith("/users/ktsu-dev/repos", StringComparison.Ordinal) => (200, $"[{RepoJson("ktsu-dev", "Alpha")}]"),
+			_ when path.EndsWith("/orgs/ktsu-dev/repos", StringComparison.Ordinal) => (200, $"[{RepoJson("ktsu-dev", "Beta")}]"),
+			_ => (404, """{"message":"not routed"}"""),
+		});
+
+		ProjectDirector.OwnerFetchResult result = ProjectDirector.FetchOwner(ClientFor(fake.BaseAddress), Owner("ktsu-dev"));
+
+		Assert.IsNull(result.Failure, result.Failure);
+		Assert.AreEqual(AccountType.Organization, result.Owner!.Type);
+		Assert.AreSequenceEqual(["Alpha", "Beta"], [.. result.Repos.Select(repo => repo.Name)]);
+
+		string dev = Path.Join(Path.GetTempPath(), $"ktsu_pd_{Guid.NewGuid():N}");
+		Dictionary<FullyQualifiedGitHubRepoName, GitRepository> repos = [];
+		ProjectDirector.MergeRemoteRepos(repos, AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(dev), Owner("ktsu-dev"), result.Repos);
+
+		Assert.HasCount(2, repos);
+		GitHubRepository alpha = (GitHubRepository)repos[FullyQualifiedGitHubRepoName.Create<FullyQualifiedGitHubRepoName>("ktsu-dev.Alpha")];
+		Assert.AreEqual(Owner("ktsu-dev"), alpha.OwnerName);
+		Assert.AreEqual("Alpha", (string)alpha.RepoName);
+		Assert.AreEqual(Path.GetFullPath(Path.Join(dev, "ktsu-dev", "Alpha")), (string)alpha.LocalPath);
 	}
 }

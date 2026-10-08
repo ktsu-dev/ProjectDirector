@@ -923,10 +923,6 @@ internal sealed class ProjectDirector
 					{
 						GitHubOwnerName newName = GitHubOwnerName.Create<GitHubOwnerName>(result);
 						_ = Options.GitHubOwners.Add(newName);
-
-						// The client is shared, so without this the new owner is queried as whichever
-						// owner the last scan left on it.
-						ApplyCredentials(GitHubClient, newName, TokenStorage.ReadOwnerToken(newName), Options.GitHubLogin, Options.GitHubToken);
 						SyncGitHubOwnerInfo(newName);
 						DrainSecretStoreReport();
 					}
@@ -1007,6 +1003,11 @@ internal sealed class ProjectDirector
 
 	private void SyncGitHubOwnerInfo(GitHubOwnerName owner)
 	{
+		// The client is shared by every owner, so the assignment has to happen for each one —
+		// including one with no token of its own, and including a newly added owner — or the
+		// previous owner's identity carries into this one. The token comes from the secret store.
+		ApplyCredentials(GitHubClient, owner, TokenStorage.ReadOwnerToken(owner), Options.GitHubLogin, Options.GitHubToken);
+
 		OwnerFetchResult fetched = FetchOwner(GitHubClient, owner);
 		if (fetched.Failure is not null)
 		{
@@ -1015,7 +1016,7 @@ internal sealed class ProjectDirector
 		}
 
 		Options.GitHubOwnerInfo[owner] = fetched.Owner!;
-		SyncGitHubRepoInfoForOwner(owner, fetched.Repos);
+		MergeRemoteRepos(Options.Repos, Options.DevDirectory, owner, fetched.Repos);
 		QueueSaveOptions();
 	}
 
@@ -1064,19 +1065,30 @@ internal sealed class ProjectDirector
 		}
 	}
 
-	private void SyncGitHubRepoInfoForOwner(GitHubOwnerName owner, IEnumerable<Repository> remoteRepos)
+	/// <summary>
+	/// Records an owner's repositories, as listed by <see cref="FetchOwner"/>, in the known repositories.
+	/// </summary>
+	/// <param name="repos">The known repositories, updated in place.</param>
+	/// <param name="devDirectory">The dev directory a repository not yet cloned is placed under.</param>
+	/// <param name="owner">The owner the repositories were listed for.</param>
+	/// <param name="remoteRepos">The owner's repositories.</param>
+	internal static void MergeRemoteRepos(Dictionary<FullyQualifiedGitHubRepoName, GitRepository> repos, AbsoluteDirectoryPath devDirectory, GitHubOwnerName owner, IEnumerable<Repository> remoteRepos)
 	{
+		Ensure.NotNull(repos);
+		Ensure.NotNull(devDirectory);
+		Ensure.NotNull(remoteRepos);
+
 		foreach (Repository remoteRepo in remoteRepos)
 		{
 			FullyQualifiedGitHubRepoName repoName = GetFullyQualifiedRepoName(remoteRepo);
 			FullyQualifiedLocalRepoPath localPath = ChooseSyncedLocalPath(
-				Options.Repos,
+				repos,
 				repoName,
-				MakeFullyQualifyLocalRepoPath(Options.DevDirectory / RelativeDirectoryPath.Create<RelativeDirectoryPath>(remoteRepo.FullName)));
+				MakeFullyQualifyLocalRepoPath(devDirectory / RelativeDirectoryPath.Create<RelativeDirectoryPath>(remoteRepo.FullName)));
 			GitRepository? repo = GitRepository.Create(GitRemotePath.Create<GitRemotePath>(remoteRepo.CloneUrl), localPath);
 			if (repo is not null)
 			{
-				Options.Repos[repoName] = repo;
+				repos[repoName] = repo;
 				if (repo is GitHubRepository gitHubRepo)
 				{
 					gitHubRepo.OwnerName = owner;
@@ -1370,11 +1382,6 @@ internal sealed class ProjectDirector
 	{
 		foreach (GitHubOwnerName owner in Options.GitHubOwners.ToArray())
 		{
-			// The owner's token now comes from the secret store rather than the options file, but the
-			// assignment still has to happen for every owner — including one with no token of its own —
-			// or the previous owner's identity carries into this scan.
-			ApplyCredentials(GitHubClient, owner, TokenStorage.ReadOwnerToken(owner), Options.GitHubLogin, Options.GitHubToken);
-
 			SyncGitHubOwnerInfo(owner);
 		}
 
