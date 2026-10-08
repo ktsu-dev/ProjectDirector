@@ -169,4 +169,45 @@ public sealed class OwnerFetchTests
 		Assert.AreEqual("Alpha", (string)alpha.RepoName);
 		Assert.AreEqual(Path.GetFullPath(Path.Join(dev, "ktsu-dev", "Alpha")), (string)alpha.LocalPath);
 	}
+
+	[TestMethod]
+	public void SyncingARefusedOwnerLogsItAndLeavesTheOptionsAlone()
+	{
+		using FakeGitHub fake = new(404);
+		using ProjectDirectorOptions options = new();
+		List<string> log = [];
+
+		bool changed = ProjectDirector.SyncOwner(ClientFor(fake.BaseAddress), options, Owner("nobody"), GitHubToken.Create<GitHubToken>(string.Empty), log.Add);
+
+		Assert.IsFalse(changed);
+		Assert.HasCount(1, log);
+		Assert.Contains("Skipped GitHub owner nobody", log[0]);
+		Assert.IsEmpty(options.GitHubOwnerInfo);
+		Assert.IsEmpty(options.Repos);
+	}
+
+	[TestMethod]
+	public void SyncingAnOwnerRecordsItWithItsOwnCredentials()
+	{
+		using FakeGitHub fake = new(path => path switch
+		{
+			_ when path.EndsWith("/users/alpha", StringComparison.Ordinal) => (200, """{"login":"alpha","id":1,"type":"User"}"""),
+			_ when path.EndsWith("/users/alpha/repos", StringComparison.Ordinal) => (200, $"[{RepoJson("alpha", "One")}]"),
+			_ => (404, """{"message":"not routed"}"""),
+		});
+		using ProjectDirectorOptions options = new()
+		{
+			DevDirectory = AbsoluteDirectoryPath.Create<AbsoluteDirectoryPath>(Path.Join(Path.GetTempPath(), $"ktsu_pd_{Guid.NewGuid():N}")),
+		};
+		GitHubClient client = ClientFor(fake.BaseAddress);
+		List<string> log = [];
+
+		bool changed = ProjectDirector.SyncOwner(client, options, Owner("alpha"), GitHubToken.Create<GitHubToken>("alpha-pat"), log.Add);
+
+		Assert.IsTrue(changed);
+		Assert.IsEmpty(log);
+		Assert.AreEqual("alpha", client.Credentials.Login, "The owner should be read with its own token.");
+		Assert.IsTrue(options.GitHubOwnerInfo.ContainsKey(Owner("alpha")));
+		Assert.IsTrue(options.Repos.ContainsKey(FullyQualifiedGitHubRepoName.Create<FullyQualifiedGitHubRepoName>("alpha.One")));
+	}
 }

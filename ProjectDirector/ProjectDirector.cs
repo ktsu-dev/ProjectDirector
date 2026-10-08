@@ -1003,21 +1003,43 @@ internal sealed class ProjectDirector
 
 	private void SyncGitHubOwnerInfo(GitHubOwnerName owner)
 	{
-		// The client is shared by every owner, so the assignment has to happen for each one —
-		// including one with no token of its own, and including a newly added owner — or the
-		// previous owner's identity carries into this one. The token comes from the secret store.
-		ApplyCredentials(GitHubClient, owner, TokenStorage.ReadOwnerToken(owner), Options.GitHubLogin, Options.GitHubToken);
+		if (SyncOwner(GitHubClient, Options, owner, TokenStorage.ReadOwnerToken(owner), QueueLog))
+		{
+			QueueSaveOptions();
+		}
+	}
 
-		OwnerFetchResult fetched = FetchOwner(GitHubClient, owner);
+	/// <summary>
+	/// Reads one owner from GitHub and records its account and repositories in the options.
+	/// </summary>
+	/// <param name="client">The client every owner shares.</param>
+	/// <param name="options">The options the owner and its repositories are recorded in.</param>
+	/// <param name="owner">The owner to read.</param>
+	/// <param name="ownerToken">That owner's own token from the secret store, empty if it has none.</param>
+	/// <param name="log">Receives the reason when the owner is skipped.</param>
+	/// <returns>Whether the options changed and should be saved.</returns>
+	/// <remarks>
+	/// The client's credentials are assigned for every owner, including one with no token of its own
+	/// and one that was only just added, or the previous owner's identity carries into this one. An
+	/// owner GitHub refuses is logged and left as it was, so a scan carries on with the next owner.
+	/// </remarks>
+	internal static bool SyncOwner(GitHubClient client, ProjectDirectorOptions options, GitHubOwnerName owner, GitHubToken ownerToken, Action<string> log)
+	{
+		Ensure.NotNull(options);
+		Ensure.NotNull(log);
+
+		ApplyCredentials(client, owner, ownerToken, options.GitHubLogin, options.GitHubToken);
+
+		OwnerFetchResult fetched = FetchOwner(client, owner);
 		if (fetched.Failure is not null)
 		{
-			QueueLog($"[{DateTimeOffset.Now}] Skipped GitHub owner {owner}: {fetched.Failure}");
-			return;
+			log($"[{DateTimeOffset.Now}] Skipped GitHub owner {owner}: {fetched.Failure}");
+			return false;
 		}
 
-		Options.GitHubOwnerInfo[owner] = fetched.Owner!;
-		MergeRemoteRepos(Options.Repos, Options.DevDirectory, owner, fetched.Repos);
-		QueueSaveOptions();
+		options.GitHubOwnerInfo[owner] = fetched.Owner!;
+		MergeRemoteRepos(options.Repos, options.DevDirectory, owner, fetched.Repos);
+		return true;
 	}
 
 	/// <summary>
