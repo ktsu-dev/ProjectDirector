@@ -924,6 +924,7 @@ internal sealed class ProjectDirector
 						GitHubOwnerName newName = GitHubOwnerName.Create<GitHubOwnerName>(result);
 						_ = Options.GitHubOwners.Add(newName);
 						SyncGitHubOwnerInfo(newName);
+						DrainSecretStoreReport();
 					}
 				});
 			}
@@ -1002,57 +1003,124 @@ internal sealed class ProjectDirector
 
 	private void SyncGitHubOwnerInfo(GitHubOwnerName owner)
 	{
-		User newOwner = GitHubClient.User.Get(owner).GetAwaiter().GetResult();
-		Options.GitHubOwnerInfo[owner] = newOwner;
-		SyncGitHubRepoInfoForOwner(owner);
-		QueueSaveOptions();
+		if (SyncOwner(GitHubClient, Options, owner, TokenStorage.ReadOwnerToken(owner), QueueLog))
+		{
+			QueueSaveOptions();
+		}
 	}
 
-	[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "<Pending>")]
-	private void SyncGitHubRepoInfoForOwner(GitHubOwnerName owner)
+	/// <summary>
+	/// Reads one owner from GitHub and records its account and repositories in the options.
+	/// </summary>
+	/// <param name="client">The client every owner shares.</param>
+	/// <param name="options">The options the owner and its repositories are recorded in.</param>
+	/// <param name="owner">The owner to read.</param>
+	/// <param name="ownerToken">That owner's own token from the secret store, empty if it has none.</param>
+	/// <param name="log">Receives the reason when the owner is skipped.</param>
+	/// <returns>Whether the options changed and should be saved.</returns>
+	/// <remarks>
+	/// The client's credentials are assigned for every owner, including one with no token of its own
+	/// and one that was only just added, or the previous owner's identity carries into this one. An
+	/// owner GitHub refuses is logged and left as it was, so a scan carries on with the next owner.
+	/// </remarks>
+	internal static bool SyncOwner(GitHubClient client, ProjectDirectorOptions options, GitHubOwnerName owner, GitHubToken ownerToken, Action<string> log)
 	{
-		if (!Options.GitHubOwnerInfo.TryGetValue(owner, out User? ownerInfo))
+		Ensure.NotNull(options);
+		Ensure.NotNull(log);
+
+		ApplyCredentials(client, owner, ownerToken, options.GitHubLogin, options.GitHubToken);
+
+		OwnerFetchResult fetched = FetchOwner(client, owner);
+		if (fetched.Failure is not null)
 		{
-			return;
+			log($"[{DateTimeOffset.Now}] Skipped GitHub owner {owner}: {fetched.Failure}");
+			return false;
 		}
+
+		options.GitHubOwnerInfo[owner] = fetched.Owner!;
+		MergeRemoteRepos(options.Repos, options.DevDirectory, owner, fetched.Repos);
+		return true;
+	}
+
+	/// <summary>
+	/// What asking GitHub about one owner returned.
+	/// </summary>
+	/// <param name="Owner">The owner's account, or <see langword="null"/> when the lookup failed.</param>
+	/// <param name="Repos">The owner's repositories, empty when the lookup failed.</param>
+	/// <param name="Failure">Why the owner could not be read, or <see langword="null"/> when it was.</param>
+	internal sealed record OwnerFetchResult(User? Owner, IReadOnlyList<Repository> Repos, string? Failure);
+
+	/// <summary>
+	/// Reads one owner's account and repositories, answering a failure rather than throwing it.
+	/// </summary>
+	/// <param name="client">The client to ask, already carrying this owner's credentials.</param>
+	/// <param name="owner">The owner to read.</param>
+	/// <returns>The account and repositories, or the reason they could not be read.</returns>
+	/// <remarks>
+	/// Both callers run on the render thread, inside a menu or popup callback, so anything thrown here
+	/// ends the scan partway and takes the window down with it. An owner that was renamed or deleted,
+	/// a revoked token, an exhausted rate limit and being offline are all ordinary, and each one is
+	/// answered here so the caller can log it and move on to the next owner. The calls use
+	/// <c>GetAwaiter().GetResult()</c> rather than <c>.Result</c>, which wraps the failure in an
+	/// <see cref="AggregateException"/> that an <see cref="ApiException"/> handler never matches.
+	/// </remarks>
+	internal static OwnerFetchResult FetchOwner(IGitHubClient client, GitHubOwnerName owner)
+	{
+		Ensure.NotNull(client);
+		Ensure.NotNull(owner);
 
 		try
 		{
-			IEnumerable<Repository> remoteRepos = GitHubClient.Repository.GetAllForUser(owner).Result;
+			User ownerInfo = client.User.Get(owner).GetAwaiter().GetResult();
+			IEnumerable<Repository> remoteRepos = client.Repository.GetAllForUser(owner).GetAwaiter().GetResult();
 
 			if (ownerInfo.Type == AccountType.Organization)
 			{
-				remoteRepos = remoteRepos.Concat(GitHubClient.Repository.GetAllForOrg(owner).Result);
+				remoteRepos = remoteRepos.Concat(client.Repository.GetAllForOrg(owner).GetAwaiter().GetResult());
 			}
 
-			foreach (Repository remoteRepo in remoteRepos)
+			return new(ownerInfo, [.. remoteRepos], null);
+		}
+		catch (Exception e) when (e is ApiException or HttpRequestException)
+		{
+			return new(null, [], e.Message);
+		}
+	}
+
+	/// <summary>
+	/// Records an owner's repositories, as listed by <see cref="FetchOwner"/>, in the known repositories.
+	/// </summary>
+	/// <param name="repos">The known repositories, updated in place.</param>
+	/// <param name="devDirectory">The dev directory a repository not yet cloned is placed under.</param>
+	/// <param name="owner">The owner the repositories were listed for.</param>
+	/// <param name="remoteRepos">The owner's repositories.</param>
+	internal static void MergeRemoteRepos(Dictionary<FullyQualifiedGitHubRepoName, GitRepository> repos, AbsoluteDirectoryPath devDirectory, GitHubOwnerName owner, IEnumerable<Repository> remoteRepos)
+	{
+		Ensure.NotNull(repos);
+		Ensure.NotNull(devDirectory);
+		Ensure.NotNull(remoteRepos);
+
+		foreach (Repository remoteRepo in remoteRepos)
+		{
+			FullyQualifiedGitHubRepoName repoName = GetFullyQualifiedRepoName(remoteRepo);
+			FullyQualifiedLocalRepoPath localPath = ChooseSyncedLocalPath(
+				repos,
+				repoName,
+				MakeFullyQualifyLocalRepoPath(devDirectory / RelativeDirectoryPath.Create<RelativeDirectoryPath>(remoteRepo.FullName)));
+			GitRepository? repo = GitRepository.Create(GitRemotePath.Create<GitRemotePath>(remoteRepo.CloneUrl), localPath);
+			if (repo is not null)
 			{
-				FullyQualifiedGitHubRepoName repoName = GetFullyQualifiedRepoName(remoteRepo);
-				FullyQualifiedLocalRepoPath localPath = ChooseSyncedLocalPath(
-					Options.Repos,
-					repoName,
-					MakeFullyQualifyLocalRepoPath(Options.DevDirectory / RelativeDirectoryPath.Create<RelativeDirectoryPath>(remoteRepo.FullName)));
-				GitRepository? repo = GitRepository.Create(GitRemotePath.Create<GitRemotePath>(remoteRepo.CloneUrl), localPath);
-				if (repo is not null)
+				repos[repoName] = repo;
+				if (repo is GitHubRepository gitHubRepo)
 				{
-					Options.Repos[repoName] = repo;
-					if (repo is GitHubRepository gitHubRepo)
-					{
-						gitHubRepo.OwnerName = owner;
-						gitHubRepo.RepoName = GitHubRepoName.Create<GitHubRepoName>(remoteRepo.Name);
-					}
-					else
-					{
-						throw new InvalidOperationException("Only GitHub Repos are supported at this time");
-					}
+					gitHubRepo.OwnerName = owner;
+					gitHubRepo.RepoName = GitHubRepoName.Create<GitHubRepoName>(remoteRepo.Name);
+				}
+				else
+				{
+					throw new InvalidOperationException("Only GitHub Repos are supported at this time");
 				}
 			}
-
-			QueueSaveOptions();
-		}
-		catch (ApiException)
-		{
-			// skip this owner
 		}
 	}
 
@@ -1336,11 +1404,6 @@ internal sealed class ProjectDirector
 	{
 		foreach (GitHubOwnerName owner in Options.GitHubOwners.ToArray())
 		{
-			// The owner's token now comes from the secret store rather than the options file, but the
-			// assignment still has to happen for every owner — including one with no token of its own —
-			// or the previous owner's identity carries into this scan.
-			ApplyCredentials(GitHubClient, owner, TokenStorage.ReadOwnerToken(owner), Options.GitHubLogin, Options.GitHubToken);
-
 			SyncGitHubOwnerInfo(owner);
 		}
 
