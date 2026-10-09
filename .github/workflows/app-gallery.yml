@@ -103,7 +103,7 @@ jobs:
       # failed test, which fails the job before anything is committed.
       - name: Regenerate the gallery
         env:
-          PROJECTDIRECTOR_GALLERY_OUT: docs/gallery
+          PROJECTDIRECTOR_GALLERY_OUT: ${{ github.workspace }}/docs/gallery
         run: |
           rm -f docs/gallery/*.png docs/gallery/README.md
           tests/ProjectDirector.UITests/bin/Release/net10.0/ktsu.ProjectDirector.UITests \
