@@ -1,26 +1,6 @@
-## v1.4.0 (minor)
+## v1.4.1 (patch)
 
-Changes since v1.3.0:
+Changes since v1.4.0:
 
-- Join browse paths without letting a rooted segment drop the repository ([@Claude](https://github.com/Claude))
-- Add a headless app gallery rendered into docs/gallery ([@Claude](https://github.com/Claude))
-- Drive the whole owner sync from tests through a static SyncOwner ([@Claude](https://github.com/Claude))
-- Cover the owner read's success path and apply credentials in one place ([@Claude](https://github.com/Claude))
-- Join the take destination with Path.Join so the repository root cannot be dropped ([@Claude](https://github.com/Claude))
-- Skip and log a GitHub owner that cannot be read instead of crashing [patch] ([@Claude](https://github.com/Claude))
-- Keep line endings and BOM when taking a diff block [patch] ([@Claude](https://github.com/Claude))
-- Return whether TryRun started the clone instead of a null task ([@Claude](https://github.com/Claude))
-- Run the clone and the refresh handoff through CloneTracker ([@Claude](https://github.com/Claude))
-- Build the test paths with Path.Join ([@Claude](https://github.com/Claude))
-- Build the test paths with Path.Join ([@Claude](https://github.com/Claude))
-- Refresh after a clone on the render thread, and allow one clone per folder [patch] ([@Claude](https://github.com/Claude))
-- Keep a cloned repository's folder when an owner scan lists it [patch] ([@Claude](https://github.com/Claude))
-- Use the MSTest assertions and OSCondition the analyzers prefer in the new tests ([@Claude](https://github.com/Claude))
-- Cover a missing tracked file and a failed comparison in SimilarReposTests ([@Claude](https://github.com/Claude))
-- Build the tracked-file path with Path.Join ([@Claude](https://github.com/Claude))
-- Use Assert.HasCount in the worktree-rename test (MSTEST0037) ([@Claude](https://github.com/Claude))
-- Finish a sibling comparison when a shared entry cannot be read [patch] ([@Claude](https://github.com/Claude))
-- Recognise SSH GitHub remotes when scanning the dev directory [patch] ([@Claude](https://github.com/Claude))
-- Consume a rename's source path when git reports it in the worktree column [patch] ([@Claude](https://github.com/Claude))
-- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
+- Point the app gallery at the repository's docs/gallery ([@Claude](https://github.com/Claude))
 
