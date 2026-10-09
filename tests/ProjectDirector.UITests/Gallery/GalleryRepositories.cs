@@ -138,9 +138,8 @@ internal static class GalleryRepositories
 			- `gamma check`
 			""");
 
-		foreach (string name in Names)
+		foreach (string path in Names.Select(PathOf))
 		{
-			string path = PathOf(name);
 			Git(path, "init", "--quiet", "--initial-branch=main");
 			Git(path, "add", "--all");
 			Git(path, "commit", "--quiet", "--no-gpg-sign", "--message", "Initial commit");

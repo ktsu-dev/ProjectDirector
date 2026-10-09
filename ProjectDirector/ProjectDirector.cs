@@ -2434,7 +2434,7 @@ internal sealed class ProjectDirector
 
 		try
 		{
-			BrowserContentsBase = ListBrowserEntries(Path.Combine(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
+			BrowserContentsBase = ListBrowserEntries(Path.Join(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
 		}
 		catch (DirectoryNotFoundException)
 		{
@@ -2443,7 +2443,7 @@ internal sealed class ProjectDirector
 
 		try
 		{
-			BrowserContentsCompare = ListBrowserEntries(Path.Combine(repoB.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoB.LocalPath)).ToCollection();
+			BrowserContentsCompare = ListBrowserEntries(Path.Join(repoB.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoB.LocalPath)).ToCollection();
 		}
 		catch (DirectoryNotFoundException)
 		{
@@ -2470,7 +2470,7 @@ internal sealed class ProjectDirector
 
 		try
 		{
-			BrowserContentsBase = ListBrowserEntries(Path.Combine(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
+			BrowserContentsBase = ListBrowserEntries(Path.Join(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
 		}
 		catch (DirectoryNotFoundException)
 		{
