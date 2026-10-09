@@ -15,6 +15,7 @@ using Hexa.NET.ImGui;
 using ktsu.Extensions;
 using ktsu.ImGui.App;
 using ktsu.ImGui.Popups;
+using ktsu.ImGui.Probes;
 using ktsu.ImGui.Widgets;
 using ktsu.ImGui.Styler;
 using Octokit;
@@ -63,23 +64,39 @@ internal sealed class ProjectDirector
 
 	// private ChatClient ChatClient { get; init; }
 
-	private static void Main(string[] _)
+	private static void Main(string[] _) => ImGuiApp.Start(new ProjectDirector().BuildConfig());
+
+	/// <summary>
+	/// Builds the configuration <see cref="Main"/> starts the application with.
+	/// </summary>
+	/// <returns>The configuration, wired to this instance.</returns>
+	/// <remarks>
+	/// Separate from <see cref="Main"/> so a headless test can start exactly the configuration the
+	/// application runs, rather than a copy of it.
+	/// </remarks>
+	internal ImGuiAppConfig BuildConfig() => new()
 	{
-		ProjectDirector projectDirector = new();
-		ImGuiApp.Start(new()
-		{
-			Title = "Project Director",
-			OnAppMenu = projectDirector.ShowMenu,
-			OnMoveOrResize = projectDirector.WindowResized,
-			OnRender = projectDirector.Tick,
-		});
-	}
+		Title = "Project Director",
+		OnAppMenu = ShowMenu,
+		OnMoveOrResize = WindowResized,
+		OnRender = Tick,
+	};
 
 	private const int LogLinesMax = 100;
 
 	public ProjectDirector()
+		: this(ProjectDirectorOptions.LoadOrCreate())
 	{
-		Options = ProjectDirectorOptions.LoadOrCreate();
+	}
+
+	/// <summary>
+	/// Initializes a new instance of the <see cref="ProjectDirector"/> class over options the caller
+	/// supplies, instead of the ones saved on this machine.
+	/// </summary>
+	/// <param name="options">The options to start from.</param>
+	internal ProjectDirector(ProjectDirectorOptions options)
+	{
+		Options = options;
 
 		_ = MakeLoadedOptionsSafe(Options, QueueLog);
 
@@ -829,6 +846,7 @@ internal sealed class ProjectDirector
 		}
 
 		ImGui.EndChild();
+		ImGuiProbes.MarkItem("Log");
 	}
 
 	private void ShowLeftPanel(float dt)
@@ -886,9 +904,13 @@ internal sealed class ProjectDirector
 
 	private void ShowMenu()
 	{
-		if (ImGui.BeginMenu("File"))
+		bool fileMenuOpen = ImGui.BeginMenu("File");
+		ImGuiProbes.MarkItem("menu/File");
+		if (fileMenuOpen)
 		{
-			if (ImGui.MenuItem("Set Dev Directory"))
+			bool setDevDirectory = ImGui.MenuItem("Set Dev Directory");
+			ImGuiProbes.MarkItem("menu/Set Dev Directory");
+			if (setDevDirectory)
 			{
 				PopupSetDevDirectory.Open("Set Dev Directory?", "Set Dev Directory?", Options.DevDirectory, result =>
 				{
@@ -915,7 +937,9 @@ internal sealed class ProjectDirector
 
 			ImGui.Separator();
 
-			if (ImGui.MenuItem("Add New GitHub Owner"))
+			bool addOwner = ImGui.MenuItem("Add New GitHub Owner");
+			ImGuiProbes.MarkItem("menu/Add New GitHub Owner");
+			if (addOwner)
 			{
 				PopupAddNewGitHubOwner.Open("New Owner Name?", "New Owner Name?", "ktsu-io", result =>
 				{
@@ -988,7 +1012,9 @@ internal sealed class ProjectDirector
 					ImGuiWidgets.ColorIndicator(Palette.Basic.Green, isCloned);
 					ImGui.SameLine();
 					bool isSelected = Options.BaseRepo == repoName;
-					if (ImGui.Selectable(gitHubRepo.RepoName, ref isSelected))
+					bool clicked = ImGui.Selectable(gitHubRepo.RepoName, ref isSelected);
+					ImGuiProbes.MarkItem("repo", gitHubRepo.RepoName);
+					if (clicked)
 					{
 						SwitchPage(repoName);
 					}
@@ -1710,6 +1736,7 @@ internal sealed class ProjectDirector
 				if (ImGui.TableNextColumn())
 				{
 					_ = ImGui.Selectable(otherRepoName, selected: false, ImGuiSelectableFlags.SpanAllColumns);
+					ImGuiProbes.MarkItem("similar", otherRepoName);
 					if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 					{
 						SwitchPage(Options.BaseRepo, otherRepoName);
@@ -1765,6 +1792,7 @@ internal sealed class ProjectDirector
 					if (ImGui.TableNextColumn())
 					{
 						_ = ImGui.Selectable(filePath, selected: false, ImGuiSelectableFlags.SpanAllColumns);
+						ImGuiProbes.MarkItem("changed", filePath);
 						if (ImGui.IsItemHovered() && ImGui.IsMouseClicked(ImGuiMouseButton.Left))
 						{
 							SwitchPage(Options.BaseRepo, Options.CompareRepo, filePath);
@@ -2294,11 +2322,14 @@ internal sealed class ProjectDirector
 				if (ImGui.TableNextColumn())
 				{
 					_ = ImGui.Selectable(path);
+					ImGuiProbes.MarkItem("browse", path);
 					if (ImGui.BeginPopupContextItem(path, ImGuiPopupFlags.MouseButtonRight))
 					{
 						ImGui.Selectable(path);
 						ImGui.Separator();
-						if (ImGui.Selectable($"Propagate"))
+						bool propagate = ImGui.Selectable($"Propagate");
+						ImGuiProbes.MarkItem("browse-menu/Propagate");
+						if (propagate)
 						{
 							shouldOpenPopup |= true;
 							Options.PropagatePath = path;
@@ -2378,6 +2409,18 @@ internal sealed class ProjectDirector
 		_ = PopupPropagateFile.ShowIfOpen();
 	}
 
+	/// <summary>
+	/// Lists a directory for the repository browsers, in name order.
+	/// </summary>
+	/// <param name="directory">The directory to list.</param>
+	/// <returns>The full paths of its files and directories, ordered by name ignoring case.</returns>
+	/// <remarks>
+	/// The file system's own order is whatever that file system keeps: alphabetical on NTFS, by hash
+	/// on ext4. Sorting makes the browsers read the same on every machine.
+	/// </remarks>
+	internal static IEnumerable<string> ListBrowserEntries(string directory) =>
+		Directory.EnumerateFileSystemEntries(directory).Order(StringComparer.OrdinalIgnoreCase);
+
 	private void SwitchCompareBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
 	{
 		Options.BrowsePath = newPath;
@@ -2391,7 +2434,7 @@ internal sealed class ProjectDirector
 
 		try
 		{
-			BrowserContentsBase = Directory.EnumerateFileSystemEntries(Path.Combine(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
+			BrowserContentsBase = ListBrowserEntries(Path.Join(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
 		}
 		catch (DirectoryNotFoundException)
 		{
@@ -2400,7 +2443,7 @@ internal sealed class ProjectDirector
 
 		try
 		{
-			BrowserContentsCompare = Directory.EnumerateFileSystemEntries(Path.Combine(repoB.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoB.LocalPath)).ToCollection();
+			BrowserContentsCompare = ListBrowserEntries(Path.Join(repoB.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoB.LocalPath)).ToCollection();
 		}
 		catch (DirectoryNotFoundException)
 		{
@@ -2427,7 +2470,7 @@ internal sealed class ProjectDirector
 
 		try
 		{
-			BrowserContentsBase = Directory.EnumerateFileSystemEntries(Path.Combine(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
+			BrowserContentsBase = ListBrowserEntries(Path.Join(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
 		}
 		catch (DirectoryNotFoundException)
 		{
