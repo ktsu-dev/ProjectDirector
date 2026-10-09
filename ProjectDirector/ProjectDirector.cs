@@ -1976,7 +1976,9 @@ internal sealed class ProjectDirector
 	private void ShowCompareBrowser()
 	{
 		IEnumerable<RelativePath> allFilesystemEntries = BrowserContentsBase.Union(BrowserContentsCompare);
-		Collection<RelativePath> directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
+		string baseRoot = Options.Repos[Options.BaseRepo].LocalPath;
+		string compareRoot = Options.Repos[Options.CompareRepo].LocalPath;
+		Collection<RelativePath> directories = allFilesystemEntries.Where(x => RepoBrowsing.IsDirectory(x, baseRoot, compareRoot)).ToCollection();
 		Collection<RelativePath> files = allFilesystemEntries.Except(directories).ToCollection();
 
 		if (ImGui.BeginTable("CompareBrowser", 3, ImGuiTableFlags.Borders))
@@ -2022,7 +2024,7 @@ internal sealed class ProjectDirector
 						GitRepository repoB = Options.Repos[Options.CompareRepo];
 						if (repoA is GitHubRepository githubRepoA && repoB is GitHubRepository githubRepoB)
 						{
-							SwitchCompareBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), RelativeDirectoryPath.Create<RelativeDirectoryPath>(Path.Combine(Options.BrowsePath, path)));
+							SwitchCompareBrowserPath(GetFullyQualifiedRepoName(githubRepoA.OwnerName, githubRepoA.RepoName), GetFullyQualifiedRepoName(githubRepoB.OwnerName, githubRepoB.RepoName), RelativeDirectoryPath.Create<RelativeDirectoryPath>(path.WeakString));
 
 						}
 						else
@@ -2036,11 +2038,11 @@ internal sealed class ProjectDirector
 				{
 					if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
 					{
-						_ = Directory.CreateDirectory(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+						LogBrowserFailure("Copying", path, RepoBrowsing.Copy(path, baseRoot, compareRoot));
 					}
 					else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
 					{
-						_ = Directory.CreateDirectory(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+						LogBrowserFailure("Copying", path, RepoBrowsing.Copy(path, compareRoot, baseRoot));
 					}
 
 					if (ImGui.IsItemHovered())
@@ -2058,11 +2060,11 @@ internal sealed class ProjectDirector
 				{
 					if (existsInA && ImGui.Button("X##Remove"))
 					{
-						Directory.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+						LogBrowserFailure("Deleting", path, RepoBrowsing.Delete(path, baseRoot));
 					}
 					else if (existsInB && ImGui.Button("X##Remove"))
 					{
-						Directory.Delete(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+						LogBrowserFailure("Deleting", path, RepoBrowsing.Delete(path, compareRoot));
 					}
 
 					if (ImGui.IsItemHovered())
@@ -2092,15 +2094,11 @@ internal sealed class ProjectDirector
 				{
 					if (existsInA && ImGui.ArrowButton("##Copy", ImGuiDir.Right))
 					{
-						string srcPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
-						string dstPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
-						File.Copy(srcPath, dstPath);
+						LogBrowserFailure("Copying", path, RepoBrowsing.Copy(path, baseRoot, compareRoot));
 					}
 					else if (existsInB && ImGui.ArrowButton("##Copy", ImGuiDir.Left))
 					{
-						string srcPath = Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path);
-						string dstPath = Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path);
-						File.Copy(srcPath, dstPath);
+						LogBrowserFailure("Copying", path, RepoBrowsing.Copy(path, compareRoot, baseRoot));
 					}
 
 					if (ImGui.IsItemHovered())
@@ -2118,11 +2116,11 @@ internal sealed class ProjectDirector
 				{
 					if (existsInA && ImGui.Button("X##Remove"))
 					{
-						File.Delete(Path.Combine(Options.Repos[Options.BaseRepo].LocalPath, Options.BrowsePath, path));
+						LogBrowserFailure("Deleting", path, RepoBrowsing.Delete(path, baseRoot));
 					}
 					else if (existsInB && ImGui.Button("X##Remove"))
 					{
-						File.Delete(Path.Combine(Options.Repos[Options.CompareRepo].LocalPath, Options.BrowsePath, path));
+						LogBrowserFailure("Deleting", path, RepoBrowsing.Delete(path, compareRoot));
 					}
 
 					if (ImGui.IsItemHovered())
@@ -2147,7 +2145,7 @@ internal sealed class ProjectDirector
 	{
 		Collection<RelativePath> allFilesystemEntries = BrowserContentsBase;
 		GitRepository baseRepo = Options.Repos[Options.BaseRepo];
-		Collection<RelativePath> directories = allFilesystemEntries.Where(x => Directory.Exists(Path.Combine(baseRepo.LocalPath, Options.BrowsePath, x))).ToCollection();
+		Collection<RelativePath> directories = allFilesystemEntries.Where(x => RepoBrowsing.IsDirectory(x, baseRepo.LocalPath)).ToCollection();
 		Collection<RelativePath> files = allFilesystemEntries.Except(directories).ToCollection();
 
 		bool shouldOpenPopup = false;
@@ -2315,34 +2313,25 @@ internal sealed class ProjectDirector
 		_ = PopupPropagateFile.ShowIfOpen();
 	}
 
+	private void LogBrowserFailure(string action, RelativePath path, string? failure)
+	{
+		if (failure is not null)
+		{
+			QueueLog($"{action} {path} failed: {failure}");
+		}
+	}
+
 	private void SwitchCompareBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
 	{
 		Options.BrowsePath = newPath;
 		GitRepository repoA = Options.Repos[baseRepo];
 		GitRepository repoB = Options.Repos[compareRepo];
 
-		static RelativePath formatPath(string path, string prefix) => RelativePath.Create<RelativePath>(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
-
 		BrowserContentsBase.Clear();
 		BrowserContentsCompare.Clear();
 
-		try
-		{
-			BrowserContentsBase = Directory.EnumerateFileSystemEntries(Path.Combine(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
-		}
-		catch (DirectoryNotFoundException)
-		{
-			// skip this repo
-		}
-
-		try
-		{
-			BrowserContentsCompare = Directory.EnumerateFileSystemEntries(Path.Combine(repoB.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoB.LocalPath)).ToCollection();
-		}
-		catch (DirectoryNotFoundException)
-		{
-			// skip this repo
-		}
+		BrowserContentsBase = RepoBrowsing.List(repoA.LocalPath, Options.BrowsePath);
+		BrowserContentsCompare = RepoBrowsing.List(repoB.LocalPath, Options.BrowsePath);
 
 		QueueSaveOptions();
 	}
@@ -2357,19 +2346,10 @@ internal sealed class ProjectDirector
 		Options.BrowsePath = newPath;
 		GitRepository repoA = Options.Repos[baseRepo];
 
-		static RelativePath formatPath(string path, string prefix) => RelativePath.Create<RelativePath>(path.RemovePrefix(prefix + Path.DirectorySeparatorChar) + (Directory.Exists(path) ? Path.DirectorySeparatorChar : string.Empty));
-
 		BrowserContentsBase.Clear();
 		BrowserContentsCompare.Clear();
 
-		try
-		{
-			BrowserContentsBase = Directory.EnumerateFileSystemEntries(Path.Combine(repoA.LocalPath, Options.BrowsePath)).Select(x => formatPath(x, repoA.LocalPath)).ToCollection();
-		}
-		catch (DirectoryNotFoundException)
-		{
-			// skip this repo
-		}
+		BrowserContentsBase = RepoBrowsing.List(repoA.LocalPath, Options.BrowsePath);
 
 		QueueSaveOptions();
 	}
