@@ -36,6 +36,8 @@ canonical version out to the rest.
 
 The [app gallery](docs/gallery/README.md) shows the main views and dialogs as the application draws them today.
 
+[![Two copies of a file compared side by side](docs/gallery/comparing-a-file.png)](docs/gallery/README.md)
+
 ## Requirements
 
 - .NET 9.0

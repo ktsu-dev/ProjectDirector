@@ -717,6 +717,11 @@ internal sealed class ProjectDirector
 
 	private void ShowTopPanel(float dt)
 	{
+		// The divider draws each zone as its own child window, so this window is the whole top zone.
+		// Marking it lets a picture of the application stop above the splitter and the log.
+		Vector2 topPanelPosition = ImGui.GetWindowPos();
+		ImGuiProbes.MarkRegion("TopPanel", topPanelPosition, topPanelPosition + ImGui.GetWindowSize());
+
 		if (Options.Repos.TryGetValue(Options.BaseRepo, out GitRepository? repo))
 		{
 			ImGui.TextUnformatted($"Selected Repo: {Options.BaseRepo}");
@@ -885,7 +890,9 @@ internal sealed class ProjectDirector
 		}
 
 		bool wasOpen = open;
-		if (ImGui.CollapsingHeader(name, flags))
+		bool expanded = ImGui.CollapsingHeader(name, flags);
+		ImGuiProbes.MarkItem("panel", name);
+		if (expanded)
 		{
 			contentDelegate?.Invoke();
 			open = true;
@@ -2067,7 +2074,7 @@ internal sealed class ProjectDirector
 	private void ShowCompareBrowser()
 	{
 		IEnumerable<RelativePath> allFilesystemEntries = BrowserContentsBase.Union(BrowserContentsCompare);
-		Collection<RelativePath> directories = allFilesystemEntries.Where(x => x.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal)).ToCollection();
+		Collection<RelativePath> directories = ListBrowserDirectories(allFilesystemEntries, Options.Repos[Options.BaseRepo].LocalPath, Options.Repos[Options.CompareRepo].LocalPath);
 		Collection<RelativePath> files = allFilesystemEntries.Except(directories).ToCollection();
 
 		if (ImGui.BeginTable("CompareBrowser", 3, ImGuiTableFlags.Borders))
@@ -2238,7 +2245,7 @@ internal sealed class ProjectDirector
 	{
 		Collection<RelativePath> allFilesystemEntries = BrowserContentsBase;
 		GitRepository baseRepo = Options.Repos[Options.BaseRepo];
-		Collection<RelativePath> directories = allFilesystemEntries.Where(x => Directory.Exists(Path.Combine(baseRepo.LocalPath, Options.BrowsePath, x))).ToCollection();
+		Collection<RelativePath> directories = ListBrowserDirectories(allFilesystemEntries, baseRepo.LocalPath);
 		Collection<RelativePath> files = allFilesystemEntries.Except(directories).ToCollection();
 
 		bool shouldOpenPopup = false;
@@ -2420,6 +2427,20 @@ internal sealed class ProjectDirector
 	/// </remarks>
 	internal static IEnumerable<string> ListBrowserEntries(string directory) =>
 		Directory.EnumerateFileSystemEntries(directory).Order(StringComparer.OrdinalIgnoreCase);
+
+	/// <summary>
+	/// Picks out the entries of a browser listing that are directories in any of the given repositories.
+	/// </summary>
+	/// <param name="entries">The listing, each entry relative to the repository root (so already including the browsed directory).</param>
+	/// <param name="repoRoots">The working trees the listing was taken from.</param>
+	/// <returns>The entries that are directories, in listing order.</returns>
+	/// <remarks>
+	/// Asked of the file system rather than read off the entry's spelling: a <see cref="RelativePath"/>
+	/// does not keep a trailing separator, so a test for one finds no directories at all, and the
+	/// compare browser used to list every directory as a file that could not be opened.
+	/// </remarks>
+	internal static Collection<RelativePath> ListBrowserDirectories(IEnumerable<RelativePath> entries, params string[] repoRoots) =>
+		entries.Where(entry => repoRoots.Any(root => Directory.Exists(Path.Join(root, entry)))).ToCollection();
 
 	private void SwitchCompareBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
 	{

@@ -92,11 +92,15 @@ internal sealed class GalleryApp : IDisposable
 	/// Gets everything above the log panel. The log prefixes each line with the wall-clock time it
 	/// was written, so it can never be photographed the same way twice.
 	/// </summary>
+	/// <remarks>
+	/// The crop ends at the bottom of the top zone rather than at the log itself, so neither the
+	/// splitter between the two nor the log's own border is left as a strip along the bottom.
+	/// </remarks>
 	/// <returns>The part of the window worth keeping.</returns>
 	internal Rectangle AboveTheLog()
 	{
-		Rectangle log = Harness.Probe.Rect("Log") ?? throw new InvalidOperationException("The log panel has not been drawn.");
-		return new Rectangle(0, 0, Harness.Options.Width, log.MinY - 1);
+		Rectangle top = Harness.Probe.Rect("TopPanel") ?? throw new InvalidOperationException("The top panel has not been drawn.");
+		return new Rectangle(0, 0, Harness.Options.Width, top.MaxY);
 	}
 
 	/// <inheritdoc/>

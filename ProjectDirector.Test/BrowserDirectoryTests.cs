@@ -1,0 +1,83 @@
+// Copyright (c) 2023-2026 ktsu-dev contributors
+
+namespace ktsu.ProjectDirector.Test;
+
+using System;
+using System.Collections.ObjectModel;
+using System.IO;
+using System.Linq;
+
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+using Semantics.Paths;
+
+/// <summary>
+/// Covers how the repository browsers tell a directory from a file.
+/// </summary>
+/// <remarks>
+/// The compare browser used to look for a trailing separator on each entry. The entries are
+/// <see cref="RelativePath"/>s, which do not keep one, so it found no directories at all and listed
+/// every directory among the files, where clicking it could not open it.
+/// </remarks>
+[TestClass]
+public sealed class BrowserDirectoryTests
+{
+	private static readonly string[] ExpectedDirectories = ["docs", "src"];
+
+	private static readonly string[] NestedDirectories = [Path.Join("src", "Inner")];
+
+	private string root = string.Empty;
+
+	[TestInitialize]
+	public void CreateRepositories()
+	{
+		root = Path.Join(Path.GetTempPath(), $"browser-dirs-{Guid.NewGuid():N}");
+		_ = Directory.CreateDirectory(Path.Join(root, "A", "src"));
+		_ = Directory.CreateDirectory(Path.Join(root, "B", "docs"));
+		File.WriteAllText(Path.Join(root, "A", "README.md"), "a");
+		File.WriteAllText(Path.Join(root, "B", "README.md"), "b");
+	}
+
+	[TestCleanup]
+	public void DeleteRepositories() => Directory.Delete(root, recursive: true);
+
+	[TestMethod]
+	public void ARelativePathDoesNotKeepItsTrailingSeparator()
+	{
+		RelativePath entry = RelativePath.Create<RelativePath>("src" + Path.DirectorySeparatorChar);
+
+		Assert.IsFalse(entry.EndsWith(Path.DirectorySeparatorChar.ToString(), StringComparison.Ordinal), "If this starts passing, the spelling of an entry says whether it is a directory again.");
+	}
+
+	[TestMethod]
+	public void DirectoriesAreFoundInWhicheverRepositoryHasThem()
+	{
+		RelativePath[] entries = [Entry("docs"), Entry("README.md"), Entry("src")];
+
+		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, Path.Join(root, "A"), Path.Join(root, "B"));
+
+		Assert.AreSequenceEqual(ExpectedDirectories, directories.Select(x => x.ToString()));
+	}
+
+	[TestMethod]
+	public void ANestedEntryIsFoundFromTheRepositoryRoot()
+	{
+		_ = Directory.CreateDirectory(Path.Join(root, "A", "src", "Inner"));
+		File.WriteAllText(Path.Join(root, "A", "src", "a.cs"), "a");
+		RelativePath[] entries = [Entry(Path.Join("src", "Inner")), Entry(Path.Join("src", "a.cs"))];
+
+		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, Path.Join(root, "A"));
+
+		Assert.AreSequenceEqual(NestedDirectories, directories.Select(x => x.ToString()));
+	}
+
+	[TestMethod]
+	public void AFileIsNeverADirectory()
+	{
+		RelativePath[] entries = [Entry("README.md")];
+
+		Assert.IsEmpty(ProjectDirector.ListBrowserDirectories(entries, Path.Join(root, "A")));
+	}
+
+	private static RelativePath Entry(string name) => RelativePath.Create<RelativePath>(name + (Path.GetFileName(name).Contains('.', StringComparison.Ordinal) ? string.Empty : Path.DirectorySeparatorChar.ToString()));
+}
