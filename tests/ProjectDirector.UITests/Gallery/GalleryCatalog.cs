@@ -55,6 +55,12 @@ internal static class GalleryCatalog
 			app =>
 			{
 				app.SelectRepository(GalleryRepositories.Alpha);
+
+				// The popup opens in the middle of the window, which with every panel open is across
+				// the similar repositories table, leaving the tops of its glyphs showing above the
+				// title bar. Folding the git actions away lifts the table clear of it.
+				app.Harness.Click("panel/Git Actions");
+				app.Harness.Step(2);
 				app.RightClick("browse/README.md");
 				app.Harness.Click("browse-menu/Propagate");
 				app.Harness.Step(3);
@@ -80,9 +86,13 @@ internal static class GalleryCatalog
 
 	private static Rectangle? AboveTheLog(GalleryApp app) => app.AboveTheLog();
 
-	/// <summary>Opens a popup from the File menu. The popup is only ever shown, never confirmed.</summary>
+	/// <summary>
+	/// Opens a popup from the File menu over a selected repository, so the popup is seen against the
+	/// application rather than an empty panel. The popup is only ever shown, never confirmed.
+	/// </summary>
 	private static void OpenMenuItem(GalleryApp app, string item)
 	{
+		app.SelectRepository(GalleryRepositories.Alpha);
 		app.Harness.Click("menu/File");
 		app.Harness.Step(2);
 		app.Harness.Click(item);

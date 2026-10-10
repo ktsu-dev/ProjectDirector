@@ -717,6 +717,11 @@ internal sealed class ProjectDirector
 
 	private void ShowTopPanel(float dt)
 	{
+		// The divider draws each zone as its own child window, so this window is the whole top zone.
+		// Marking it lets a picture of the application stop above the splitter and the log.
+		Vector2 topPanelPosition = ImGui.GetWindowPos();
+		ImGuiProbes.MarkRegion("TopPanel", topPanelPosition, topPanelPosition + ImGui.GetWindowSize());
+
 		if (Options.Repos.TryGetValue(Options.BaseRepo, out GitRepository? repo))
 		{
 			ImGui.TextUnformatted($"Selected Repo: {Options.BaseRepo}");
@@ -885,7 +890,9 @@ internal sealed class ProjectDirector
 		}
 
 		bool wasOpen = open;
-		if (ImGui.CollapsingHeader(name, flags))
+		bool expanded = ImGui.CollapsingHeader(name, flags);
+		ImGuiProbes.MarkItem("panel", name);
+		if (expanded)
 		{
 			contentDelegate?.Invoke();
 			open = true;
