@@ -24,18 +24,18 @@ public sealed class BrowserDirectoryTests
 {
 	private static readonly string[] ExpectedDirectories = ["docs", "src"];
 
-	private static readonly string[] NestedDirectories = [Path.Combine("src", "Inner")];
+	private static readonly string[] NestedDirectories = [Path.Join("src", "Inner")];
 
 	private string root = string.Empty;
 
 	[TestInitialize]
 	public void CreateRepositories()
 	{
-		root = Path.Combine(Path.GetTempPath(), $"browser-dirs-{Guid.NewGuid():N}");
-		_ = Directory.CreateDirectory(Path.Combine(root, "A", "src"));
-		_ = Directory.CreateDirectory(Path.Combine(root, "B", "docs"));
-		File.WriteAllText(Path.Combine(root, "A", "README.md"), "a");
-		File.WriteAllText(Path.Combine(root, "B", "README.md"), "b");
+		root = Path.Join(Path.GetTempPath(), $"browser-dirs-{Guid.NewGuid():N}");
+		_ = Directory.CreateDirectory(Path.Join(root, "A", "src"));
+		_ = Directory.CreateDirectory(Path.Join(root, "B", "docs"));
+		File.WriteAllText(Path.Join(root, "A", "README.md"), "a");
+		File.WriteAllText(Path.Join(root, "B", "README.md"), "b");
 	}
 
 	[TestCleanup]
@@ -54,7 +54,7 @@ public sealed class BrowserDirectoryTests
 	{
 		RelativePath[] entries = [Entry("docs"), Entry("README.md"), Entry("src")];
 
-		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, Path.Combine(root, "A"), Path.Combine(root, "B"));
+		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, Path.Join(root, "A"), Path.Join(root, "B"));
 
 		Assert.AreSequenceEqual(ExpectedDirectories, directories.Select(x => x.ToString()));
 	}
@@ -62,11 +62,11 @@ public sealed class BrowserDirectoryTests
 	[TestMethod]
 	public void ANestedEntryIsFoundFromTheRepositoryRoot()
 	{
-		_ = Directory.CreateDirectory(Path.Combine(root, "A", "src", "Inner"));
-		File.WriteAllText(Path.Combine(root, "A", "src", "a.cs"), "a");
-		RelativePath[] entries = [Entry(Path.Combine("src", "Inner")), Entry(Path.Combine("src", "a.cs"))];
+		_ = Directory.CreateDirectory(Path.Join(root, "A", "src", "Inner"));
+		File.WriteAllText(Path.Join(root, "A", "src", "a.cs"), "a");
+		RelativePath[] entries = [Entry(Path.Join("src", "Inner")), Entry(Path.Join("src", "a.cs"))];
 
-		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, Path.Combine(root, "A"));
+		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, Path.Join(root, "A"));
 
 		Assert.AreSequenceEqual(NestedDirectories, directories.Select(x => x.ToString()));
 	}
@@ -76,7 +76,7 @@ public sealed class BrowserDirectoryTests
 	{
 		RelativePath[] entries = [Entry("README.md")];
 
-		Assert.IsEmpty(ProjectDirector.ListBrowserDirectories(entries, Path.Combine(root, "A")));
+		Assert.IsEmpty(ProjectDirector.ListBrowserDirectories(entries, Path.Join(root, "A")));
 	}
 
 	private static RelativePath Entry(string name) => RelativePath.Create<RelativePath>(name + (Path.GetFileName(name).Contains('.', StringComparison.Ordinal) ? string.Empty : Path.DirectorySeparatorChar.ToString()));
