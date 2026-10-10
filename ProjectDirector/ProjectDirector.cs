@@ -2074,7 +2074,7 @@ internal sealed class ProjectDirector
 	private void ShowCompareBrowser()
 	{
 		IEnumerable<RelativePath> allFilesystemEntries = BrowserContentsBase.Union(BrowserContentsCompare);
-		Collection<RelativePath> directories = ListBrowserDirectories(allFilesystemEntries, Options.BrowsePath, Options.Repos[Options.BaseRepo].LocalPath, Options.Repos[Options.CompareRepo].LocalPath);
+		Collection<RelativePath> directories = ListBrowserDirectories(allFilesystemEntries, Options.Repos[Options.BaseRepo].LocalPath, Options.Repos[Options.CompareRepo].LocalPath);
 		Collection<RelativePath> files = allFilesystemEntries.Except(directories).ToCollection();
 
 		if (ImGui.BeginTable("CompareBrowser", 3, ImGuiTableFlags.Borders))
@@ -2245,7 +2245,7 @@ internal sealed class ProjectDirector
 	{
 		Collection<RelativePath> allFilesystemEntries = BrowserContentsBase;
 		GitRepository baseRepo = Options.Repos[Options.BaseRepo];
-		Collection<RelativePath> directories = ListBrowserDirectories(allFilesystemEntries, Options.BrowsePath, baseRepo.LocalPath);
+		Collection<RelativePath> directories = ListBrowserDirectories(allFilesystemEntries, baseRepo.LocalPath);
 		Collection<RelativePath> files = allFilesystemEntries.Except(directories).ToCollection();
 
 		bool shouldOpenPopup = false;
@@ -2431,8 +2431,7 @@ internal sealed class ProjectDirector
 	/// <summary>
 	/// Picks out the entries of a browser listing that are directories in any of the given repositories.
 	/// </summary>
-	/// <param name="entries">The listing, relative to <paramref name="browsePath"/>.</param>
-	/// <param name="browsePath">The directory being browsed, relative to each repository.</param>
+	/// <param name="entries">The listing, each entry relative to the repository root (so already including the browsed directory).</param>
 	/// <param name="repoRoots">The working trees the listing was taken from.</param>
 	/// <returns>The entries that are directories, in listing order.</returns>
 	/// <remarks>
@@ -2440,8 +2439,8 @@ internal sealed class ProjectDirector
 	/// does not keep a trailing separator, so a test for one finds no directories at all, and the
 	/// compare browser used to list every directory as a file that could not be opened.
 	/// </remarks>
-	internal static Collection<RelativePath> ListBrowserDirectories(IEnumerable<RelativePath> entries, string browsePath, params string[] repoRoots) =>
-		entries.Where(entry => repoRoots.Any(root => Directory.Exists(Path.Join(root, browsePath, entry)))).ToCollection();
+	internal static Collection<RelativePath> ListBrowserDirectories(IEnumerable<RelativePath> entries, params string[] repoRoots) =>
+		entries.Where(entry => repoRoots.Any(root => Directory.Exists(Path.Join(root, entry)))).ToCollection();
 
 	private void SwitchCompareBrowserPath(FullyQualifiedGitHubRepoName baseRepo, FullyQualifiedGitHubRepoName compareRepo, RelativeDirectoryPath newPath)
 	{

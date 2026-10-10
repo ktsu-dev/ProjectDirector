@@ -24,6 +24,8 @@ public sealed class BrowserDirectoryTests
 {
 	private static readonly string[] ExpectedDirectories = ["docs", "src"];
 
+	private static readonly string[] NestedDirectories = [Path.Combine("src", "Inner")];
+
 	private string root = string.Empty;
 
 	[TestInitialize]
@@ -52,9 +54,21 @@ public sealed class BrowserDirectoryTests
 	{
 		RelativePath[] entries = [Entry("docs"), Entry("README.md"), Entry("src")];
 
-		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, string.Empty, Path.Combine(root, "A"), Path.Combine(root, "B"));
+		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, Path.Combine(root, "A"), Path.Combine(root, "B"));
 
 		Assert.AreSequenceEqual(ExpectedDirectories, directories.Select(x => x.ToString()));
+	}
+
+	[TestMethod]
+	public void ANestedEntryIsFoundFromTheRepositoryRoot()
+	{
+		_ = Directory.CreateDirectory(Path.Combine(root, "A", "src", "Inner"));
+		File.WriteAllText(Path.Combine(root, "A", "src", "a.cs"), "a");
+		RelativePath[] entries = [Entry(Path.Combine("src", "Inner")), Entry(Path.Combine("src", "a.cs"))];
+
+		Collection<RelativePath> directories = ProjectDirector.ListBrowserDirectories(entries, Path.Combine(root, "A"));
+
+		Assert.AreSequenceEqual(NestedDirectories, directories.Select(x => x.ToString()));
 	}
 
 	[TestMethod]
@@ -62,8 +76,8 @@ public sealed class BrowserDirectoryTests
 	{
 		RelativePath[] entries = [Entry("README.md")];
 
-		Assert.IsEmpty(ProjectDirector.ListBrowserDirectories(entries, string.Empty, Path.Combine(root, "A")));
+		Assert.IsEmpty(ProjectDirector.ListBrowserDirectories(entries, Path.Combine(root, "A")));
 	}
 
-	private static RelativePath Entry(string name) => RelativePath.Create<RelativePath>(name + (name.Contains('.', StringComparison.Ordinal) ? string.Empty : Path.DirectorySeparatorChar.ToString()));
+	private static RelativePath Entry(string name) => RelativePath.Create<RelativePath>(name + (Path.GetFileName(name).Contains('.', StringComparison.Ordinal) ? string.Empty : Path.DirectorySeparatorChar.ToString()));
 }
