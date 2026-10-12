@@ -23,12 +23,17 @@ internal static class RepoBrowsing
 	/// </summary>
 	/// <param name="repoRoot">The repository's local path.</param>
 	/// <param name="browsePath">The folder to list, relative to <paramref name="repoRoot"/>.</param>
-	/// <returns>Each entry relative to <paramref name="repoRoot"/>, or nothing when the folder is not there.</returns>
+	/// <returns>Each entry relative to <paramref name="repoRoot"/>, in name order ignoring case, or nothing when the folder is not there.</returns>
+	/// <remarks>
+	/// The file system's own order is whatever that file system keeps: alphabetical on NTFS, by hash
+	/// on ext4. Sorting makes the browsers read the same on every machine.
+	/// </remarks>
 	internal static Collection<RelativePath> List(string repoRoot, string browsePath)
 	{
 		try
 		{
 			return [.. Directory.EnumerateFileSystemEntries(Path.Join(repoRoot, browsePath))
+				.Order(StringComparer.OrdinalIgnoreCase)
 				.Select(entry => RelativePath.Create<RelativePath>(Path.GetRelativePath(repoRoot, entry)))];
 		}
 		catch (DirectoryNotFoundException)

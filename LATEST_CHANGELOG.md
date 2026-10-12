@@ -1,7 +1,10 @@
-## v1.3.7 (patch)
+## v1.5.0 (minor)
 
-Changes since v1.3.6:
+Changes since v1.4.0:
 
-- Join the take destination with Path.Join so the repository root cannot be dropped ([@Claude](https://github.com/Claude))
-- Keep line endings and BOM when taking a diff block [patch] ([@Claude](https://github.com/Claude))
+- Join test paths with Path.Join ([@Claude](https://github.com/Claude))
+- Classify browser entries from the repository root ([@Claude](https://github.com/Claude))
+- Fix the compare browser listing directories as files ([@Claude](https://github.com/Claude))
+- Tidy the app gallery: no splitter strip, no empty panel, no stray glyph ([@Claude](https://github.com/Claude))
+- Point the app gallery at the repository's docs/gallery ([@Claude](https://github.com/Claude))
 

@@ -1,0 +1,24 @@
+<Project>
+  <Sdk Name="MSTest.Sdk" />
+  <Sdk Name="ktsu.Sdk" />
+
+  <PropertyGroup>
+    <IsTestProject>true</IsTestProject>
+    <TargetFramework>net10.0</TargetFramework>
+    <TargetFrameworks></TargetFrameworks>
+    <!-- The SDK folds the tests/ folder into the derived namespace (ktsu.tests.ProjectDirector.*),
+         so the namespace and assembly name are set here until ktsu-dev/Sdk#37 teaches it to skip
+         scaffolding folders. The assembly name is what the application's InternalsVisibleTo names. -->
+    <RootNamespace>ktsu.ProjectDirector.UITests</RootNamespace>
+    <AssemblyName>$(RootNamespace)</AssemblyName>
+    <EnableSourceLink>false</EnableSourceLink>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\ProjectDirector\ProjectDirector.csproj" />
+    <PackageReference Include="ktsu.ImGui.App.Testing" />
+    <PackageReference Include="ktsu.ImGui.Probes" />
+    <PackageReference Include="TestableIO.System.IO.Abstractions.TestingHelpers" />
+  </ItemGroup>
+</Project>
