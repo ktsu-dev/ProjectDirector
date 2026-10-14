@@ -1,10 +1,7 @@
-## v1.5.1 (patch)
+## v1.5.2-pre.1 (prerelease)
 
-Changes since v1.5.0:
+Changes since v1.5.1:
 
-- Merge main into fix/440-browser-paths ([@Claude](https://github.com/Claude))
-- Merge main into fix/440-browser-paths ([@Claude](https://github.com/Claude))
-- Cover deleting a nested file in RepoBrowsingTests ([@Claude](https://github.com/Claude))
-- Join browser paths with Path.Join so a rooted entry cannot replace the repository root ([@Claude](https://github.com/Claude))
-- Browse and compare below the top folder, and keep Give/Take/X off the render thread's exceptions [patch] ([@Claude](https://github.com/Claude))
+- Bump Polyfill from 11.4.3 to 11.4.5 (dependabot[bot])
+- Bump the ktsu group with 8 updates (dependabot[bot])
 

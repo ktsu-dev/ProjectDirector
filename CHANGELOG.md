@@ -1,268 +1,275 @@
+## v1.5.2-pre.1 (prerelease)
+
+Changes since v1.5.1:
+
+- Bump Polyfill from 11.4.3 to 11.4.5 (dependabot[bot])
+- Bump the ktsu group with 8 updates (dependabot[bot])
+
 ## v1.5.1 (patch)
 
 Changes since v1.5.0:
 
-- Merge main into fix/440-browser-paths ([@Claude](https://github.com/Claude))
-- Merge main into fix/440-browser-paths ([@Claude](https://github.com/Claude))
-- Cover deleting a nested file in RepoBrowsingTests ([@Claude](https://github.com/Claude))
-- Join browser paths with Path.Join so a rooted entry cannot replace the repository root ([@Claude](https://github.com/Claude))
-- Browse and compare below the top folder, and keep Give/Take/X off the render thread's exceptions [patch] ([@Claude](https://github.com/Claude))
+- Merge main into fix/440-browser-paths (Claude)
+- Merge main into fix/440-browser-paths (Claude)
+- Cover deleting a nested file in RepoBrowsingTests (Claude)
+- Join browser paths with Path.Join so a rooted entry cannot replace the repository root (Claude)
+- Browse and compare below the top folder, and keep Give/Take/X off the render thread's exceptions [patch] (Claude)
 
 ## v1.5.0 (minor)
 
 Changes since v1.4.0:
 
-- Join test paths with Path.Join ([@Claude](https://github.com/Claude))
-- Classify browser entries from the repository root ([@Claude](https://github.com/Claude))
-- Fix the compare browser listing directories as files ([@Claude](https://github.com/Claude))
-- Tidy the app gallery: no splitter strip, no empty panel, no stray glyph ([@Claude](https://github.com/Claude))
-- Point the app gallery at the repository's docs/gallery ([@Claude](https://github.com/Claude))
+- Join test paths with Path.Join (Claude)
+- Classify browser entries from the repository root (Claude)
+- Fix the compare browser listing directories as files (Claude)
+- Tidy the app gallery: no splitter strip, no empty panel, no stray glyph (Claude)
+- Point the app gallery at the repository's docs/gallery (Claude)
 
 ## v1.4.1 (patch)
 
 Changes since v1.4.0:
 
-- Point the app gallery at the repository's docs/gallery ([@Claude](https://github.com/Claude))
+- Point the app gallery at the repository's docs/gallery (Claude)
 
 ## v1.4.0 (minor)
 
 Changes since v1.3.0:
 
-- Join browse paths without letting a rooted segment drop the repository ([@Claude](https://github.com/Claude))
-- Add a headless app gallery rendered into docs/gallery ([@Claude](https://github.com/Claude))
-- Drive the whole owner sync from tests through a static SyncOwner ([@Claude](https://github.com/Claude))
-- Cover the owner read's success path and apply credentials in one place ([@Claude](https://github.com/Claude))
-- Join the take destination with Path.Join so the repository root cannot be dropped ([@Claude](https://github.com/Claude))
-- Skip and log a GitHub owner that cannot be read instead of crashing [patch] ([@Claude](https://github.com/Claude))
-- Keep line endings and BOM when taking a diff block [patch] ([@Claude](https://github.com/Claude))
-- Return whether TryRun started the clone instead of a null task ([@Claude](https://github.com/Claude))
-- Run the clone and the refresh handoff through CloneTracker ([@Claude](https://github.com/Claude))
-- Build the test paths with Path.Join ([@Claude](https://github.com/Claude))
-- Build the test paths with Path.Join ([@Claude](https://github.com/Claude))
-- Refresh after a clone on the render thread, and allow one clone per folder [patch] ([@Claude](https://github.com/Claude))
-- Keep a cloned repository's folder when an owner scan lists it [patch] ([@Claude](https://github.com/Claude))
-- Use the MSTest assertions and OSCondition the analyzers prefer in the new tests ([@Claude](https://github.com/Claude))
-- Cover a missing tracked file and a failed comparison in SimilarReposTests ([@Claude](https://github.com/Claude))
-- Build the tracked-file path with Path.Join ([@Claude](https://github.com/Claude))
-- Use Assert.HasCount in the worktree-rename test (MSTEST0037) ([@Claude](https://github.com/Claude))
-- Finish a sibling comparison when a shared entry cannot be read [patch] ([@Claude](https://github.com/Claude))
-- Recognise SSH GitHub remotes when scanning the dev directory [patch] ([@Claude](https://github.com/Claude))
-- Consume a rename's source path when git reports it in the worktree column [patch] ([@Claude](https://github.com/Claude))
-- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
+- Join browse paths without letting a rooted segment drop the repository (Claude)
+- Add a headless app gallery rendered into docs/gallery (Claude)
+- Drive the whole owner sync from tests through a static SyncOwner (Claude)
+- Cover the owner read's success path and apply credentials in one place (Claude)
+- Join the take destination with Path.Join so the repository root cannot be dropped (Claude)
+- Skip and log a GitHub owner that cannot be read instead of crashing [patch] (Claude)
+- Keep line endings and BOM when taking a diff block [patch] (Claude)
+- Return whether TryRun started the clone instead of a null task (Claude)
+- Run the clone and the refresh handoff through CloneTracker (Claude)
+- Build the test paths with Path.Join (Claude)
+- Build the test paths with Path.Join (Claude)
+- Refresh after a clone on the render thread, and allow one clone per folder [patch] (Claude)
+- Keep a cloned repository's folder when an owner scan lists it [patch] (Claude)
+- Use the MSTest assertions and OSCondition the analyzers prefer in the new tests (Claude)
+- Cover a missing tracked file and a failed comparison in SimilarReposTests (Claude)
+- Build the tracked-file path with Path.Join (Claude)
+- Use Assert.HasCount in the worktree-rename test (MSTEST0037) (Claude)
+- Finish a sibling comparison when a shared entry cannot be read [patch] (Claude)
+- Recognise SSH GitHub remotes when scanning the dev directory [patch] (Claude)
+- Consume a rename's source path when git reports it in the worktree column [patch] (Claude)
+- Move CI onto the shared ci-shared.yml pipeline (Claude)
 
 ## v1.3.8 (patch)
 
 Changes since v1.3.7:
 
-- Drive the whole owner sync from tests through a static SyncOwner ([@Claude](https://github.com/Claude))
-- Cover the owner read's success path and apply credentials in one place ([@Claude](https://github.com/Claude))
-- Skip and log a GitHub owner that cannot be read instead of crashing [patch] ([@Claude](https://github.com/Claude))
+- Drive the whole owner sync from tests through a static SyncOwner (Claude)
+- Cover the owner read's success path and apply credentials in one place (Claude)
+- Skip and log a GitHub owner that cannot be read instead of crashing [patch] (Claude)
 
 ## v1.3.7 (patch)
 
 Changes since v1.3.6:
 
-- Join the take destination with Path.Join so the repository root cannot be dropped ([@Claude](https://github.com/Claude))
-- Keep line endings and BOM when taking a diff block [patch] ([@Claude](https://github.com/Claude))
+- Join the take destination with Path.Join so the repository root cannot be dropped (Claude)
+- Keep line endings and BOM when taking a diff block [patch] (Claude)
 
 ## v1.3.7-pre.1 (prerelease)
 
 Changes since v1.3.6:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v1.3.6 (patch)
 
 Changes since v1.3.5:
 
-- Return whether TryRun started the clone instead of a null task ([@Claude](https://github.com/Claude))
-- Run the clone and the refresh handoff through CloneTracker ([@Claude](https://github.com/Claude))
-- Build the test paths with Path.Join ([@Claude](https://github.com/Claude))
-- Build the test paths with Path.Join ([@Claude](https://github.com/Claude))
-- Refresh after a clone on the render thread, and allow one clone per folder [patch] ([@Claude](https://github.com/Claude))
-- Keep a cloned repository's folder when an owner scan lists it [patch] ([@Claude](https://github.com/Claude))
+- Return whether TryRun started the clone instead of a null task (Claude)
+- Run the clone and the refresh handoff through CloneTracker (Claude)
+- Build the test paths with Path.Join (Claude)
+- Build the test paths with Path.Join (Claude)
+- Refresh after a clone on the render thread, and allow one clone per folder [patch] (Claude)
+- Keep a cloned repository's folder when an owner scan lists it [patch] (Claude)
 
 ## v1.3.5 (patch)
 
 Changes since v1.3.4:
 
-- Use the MSTest assertions and OSCondition the analyzers prefer in the new tests ([@Claude](https://github.com/Claude))
-- Cover a missing tracked file and a failed comparison in SimilarReposTests ([@Claude](https://github.com/Claude))
-- Build the tracked-file path with Path.Join ([@Claude](https://github.com/Claude))
-- Use Assert.HasCount in the worktree-rename test (MSTEST0037) ([@Claude](https://github.com/Claude))
-- Finish a sibling comparison when a shared entry cannot be read [patch] ([@Claude](https://github.com/Claude))
-- Recognise SSH GitHub remotes when scanning the dev directory [patch] ([@Claude](https://github.com/Claude))
-- Consume a rename's source path when git reports it in the worktree column [patch] ([@Claude](https://github.com/Claude))
+- Use the MSTest assertions and OSCondition the analyzers prefer in the new tests (Claude)
+- Cover a missing tracked file and a failed comparison in SimilarReposTests (Claude)
+- Build the tracked-file path with Path.Join (Claude)
+- Use Assert.HasCount in the worktree-rename test (MSTEST0037) (Claude)
+- Finish a sibling comparison when a shared entry cannot be read [patch] (Claude)
+- Recognise SSH GitHub remotes when scanning the dev directory [patch] (Claude)
+- Consume a rename's source path when git reports it in the worktree column [patch] (Claude)
 
 ## v1.3.5-pre.4 (prerelease)
 
 Changes since v1.3.5-pre.3:
 
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.3.5-pre.3 (prerelease)
 
 Changes since v1.3.5-pre.2:
 
-- Bump the ktsu group with 4 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 4 updates (dependabot[bot])
 
 ## v1.3.5-pre.2 (prerelease)
 
 Changes since v1.3.5-pre.1:
 
-- Bump the ktsu group with 6 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 6 updates (dependabot[bot])
 
 ## v1.3.5-pre.1 (prerelease)
 
 Changes since v1.3.4:
 
-- Bump the ktsu group with 10 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 10 updates (dependabot[bot])
 
 ## v1.3.4 (patch)
 
 Changes since v1.3.3:
 
-- Move CI onto the shared ci-shared.yml pipeline ([@Claude](https://github.com/Claude))
+- Move CI onto the shared ci-shared.yml pipeline (Claude)
 
 ## v1.3.4-pre.1 (prerelease)
 
 Changes since v1.3.3:
 
-- Bump Polyfill from 11.4.0 to 11.4.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 11.4.0 to 11.4.1 (dependabot[bot])
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.3.3 (patch)
 
 Changes since v1.3.2:
 
-- Bump the ktsu group with 9 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 9 updates (dependabot[bot])
 
 ## v1.3.2 (patch)
 
 Changes since v1.3.1:
 
-- Bump the ktsu group with 19 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 19 updates (dependabot[bot])
 
 ## v1.3.1 (patch)
 
 Changes since v1.3.0:
 
-- Bump the ktsu group with 19 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 19 updates (dependabot[bot])
 
 ## v1.3.0 (minor)
 
 Changes since v1.2.0:
 
-- refactor: filter the siblings with Where instead of an inner if [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- test: address the code-quality findings on the new tests [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- refactor: lift the comparison's rules out of the render paths [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- test: cover which comparison wins and what shows while one runs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: compare a repo against its siblings off the render thread [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- Merge main into fix/425-scan-skips-unreadable-dirs ([@Claude](https://github.com/Claude))
-- fix: make the dev directory default work off Windows, and cover the load path [patch] ([@Claude](https://github.com/Claude))
-- test: cover applying an owner's credentials to the shared client [patch] ([@Claude](https://github.com/Claude))
-- fix: reject an unsupported saved repository at load instead of crashing [patch] ([@Claude](https://github.com/Claude))
-- fix: scan each owner with its own credentials, not the previous owner's [patch] ([@Claude](https://github.com/Claude))
-- fix: survive an unreadable directory while scanning the dev directory [patch] ([@Claude](https://github.com/Claude))
-- refactor: pin the startup token ordering ([@Claude](https://github.com/Claude))
-- refactor: pull the token rules out of the ImGui code, and test them ([@Claude](https://github.com/Claude))
-- feat: keep GitHub tokens in the OS secret store [minor] ([@Claude](https://github.com/Claude))
-- Use the collection and string assertions MSTest suggests ([@matt-edmondson](https://github.com/matt-edmondson))
-- Pull the rest of the propagation rule out of the popup, and cover it ([@matt-edmondson](https://github.com/matt-edmondson))
-- Move SourceLink off the version the NuGet audit fails the build on ([@matt-edmondson](https://github.com/matt-edmondson))
-- Finish a file propagation the user confirmed, and say what it did ([@matt-edmondson](https://github.com/matt-edmondson))
-- Gate Dependabot auto-merge on CI actually being green ([@Claude](https://github.com/Claude))
-- ci: adopt the consolidated .NET workflow [patch] ([@Claude](https://github.com/Claude))
+- refactor: filter the siblings with Where instead of an inner if [patch] (matt-edmondson)
+- test: address the code-quality findings on the new tests [patch] (matt-edmondson)
+- refactor: lift the comparison's rules out of the render paths [patch] (matt-edmondson)
+- test: cover which comparison wins and what shows while one runs [patch] (matt-edmondson)
+- fix: compare a repo against its siblings off the render thread [patch] (matt-edmondson)
+- Merge main into fix/425-scan-skips-unreadable-dirs (Claude)
+- fix: make the dev directory default work off Windows, and cover the load path [patch] (Claude)
+- test: cover applying an owner's credentials to the shared client [patch] (Claude)
+- fix: reject an unsupported saved repository at load instead of crashing [patch] (Claude)
+- fix: scan each owner with its own credentials, not the previous owner's [patch] (Claude)
+- fix: survive an unreadable directory while scanning the dev directory [patch] (Claude)
+- refactor: pin the startup token ordering (Claude)
+- refactor: pull the token rules out of the ImGui code, and test them (Claude)
+- feat: keep GitHub tokens in the OS secret store [minor] (Claude)
+- Use the collection and string assertions MSTest suggests (matt-edmondson)
+- Pull the rest of the propagation rule out of the popup, and cover it (matt-edmondson)
+- Move SourceLink off the version the NuGet audit fails the build on (matt-edmondson)
+- Finish a file propagation the user confirmed, and say what it did (matt-edmondson)
+- Gate Dependabot auto-merge on CI actually being green (Claude)
+- ci: adopt the consolidated .NET workflow [patch] (Claude)
 
 ## v1.2.14 (patch)
 
 Changes since v1.2.13:
 
-- refactor: filter the siblings with Where instead of an inner if [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- test: address the code-quality findings on the new tests [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- refactor: lift the comparison's rules out of the render paths [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- test: cover which comparison wins and what shows while one runs [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- fix: compare a repo against its siblings off the render thread [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- refactor: filter the siblings with Where instead of an inner if [patch] (matt-edmondson)
+- test: address the code-quality findings on the new tests [patch] (matt-edmondson)
+- refactor: lift the comparison's rules out of the render paths [patch] (matt-edmondson)
+- test: cover which comparison wins and what shows while one runs [patch] (matt-edmondson)
+- fix: compare a repo against its siblings off the render thread [patch] (matt-edmondson)
 
 ## v1.2.13 (patch)
 
 Changes since v1.2.12:
 
-- Merge main into fix/425-scan-skips-unreadable-dirs ([@Claude](https://github.com/Claude))
-- fix: survive an unreadable directory while scanning the dev directory [patch] ([@Claude](https://github.com/Claude))
+- Merge main into fix/425-scan-skips-unreadable-dirs (Claude)
+- fix: survive an unreadable directory while scanning the dev directory [patch] (Claude)
 
 ## v1.2.12 (patch)
 
 Changes since v1.2.11:
 
-- fix: make the dev directory default work off Windows, and cover the load path [patch] ([@Claude](https://github.com/Claude))
-- test: cover applying an owner's credentials to the shared client [patch] ([@Claude](https://github.com/Claude))
-- fix: reject an unsupported saved repository at load instead of crashing [patch] ([@Claude](https://github.com/Claude))
-- fix: scan each owner with its own credentials, not the previous owner's [patch] ([@Claude](https://github.com/Claude))
+- fix: make the dev directory default work off Windows, and cover the load path [patch] (Claude)
+- test: cover applying an owner's credentials to the shared client [patch] (Claude)
+- fix: reject an unsupported saved repository at load instead of crashing [patch] (Claude)
+- fix: scan each owner with its own credentials, not the previous owner's [patch] (Claude)
 
 ## v1.2.11 (patch)
 
 Changes since v1.2.10:
 
-- Bump ktsu.AppDataStorage and 15 others ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 11.3.0 to 11.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 18 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump ktsu.AppDataStorage and 15 others (dependabot[bot])
+- Bump Polyfill from 11.3.0 to 11.4.0 (dependabot[bot])
+- Bump the ktsu group with 18 updates (dependabot[bot])
 
 ## v1.2.10 (patch)
 
 Changes since v1.2.9:
 
-- Bump the ktsu group with 6 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump MSTest.Sdk from 4.4.0 to 4.4.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump ktsu.AppDataStorage and 16 others ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 6 updates (dependabot[bot])
+- Bump MSTest.Sdk from 4.4.0 to 4.4.1 (dependabot[bot])
+- Bump ktsu.AppDataStorage and 16 others (dependabot[bot])
 
 ## v1.2.9 (patch)
 
 Changes since v1.2.8:
 
-- Use the collection and string assertions MSTest suggests ([@matt-edmondson](https://github.com/matt-edmondson))
-- Pull the rest of the propagation rule out of the popup, and cover it ([@matt-edmondson](https://github.com/matt-edmondson))
-- Move SourceLink off the version the NuGet audit fails the build on ([@matt-edmondson](https://github.com/matt-edmondson))
-- Finish a file propagation the user confirmed, and say what it did ([@matt-edmondson](https://github.com/matt-edmondson))
-- Gate Dependabot auto-merge on CI actually being green ([@Claude](https://github.com/Claude))
-- ci: adopt the consolidated .NET workflow [patch] ([@Claude](https://github.com/Claude))
+- Use the collection and string assertions MSTest suggests (matt-edmondson)
+- Pull the rest of the propagation rule out of the popup, and cover it (matt-edmondson)
+- Move SourceLink off the version the NuGet audit fails the build on (matt-edmondson)
+- Finish a file propagation the user confirmed, and say what it did (matt-edmondson)
+- Gate Dependabot auto-merge on CI actually being green (Claude)
+- ci: adopt the consolidated .NET workflow [patch] (Claude)
 
 ## v1.2.8 (patch)
 
 Changes since v1.2.7:
 
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.2.7 (patch)
 
 Changes since v1.2.6:
 
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.2.6 (patch)
 
 Changes since v1.2.5:
 
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.2.5 (patch)
 
 Changes since v1.2.4:
 
-- Bump MSTest.Sdk from 4.3.3 to 4.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 5 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.3.3 to 4.4.0 (dependabot[bot])
+- Bump the ktsu group with 5 updates (dependabot[bot])
 
 ## v1.2.4 (patch)
 
 Changes since v1.2.3:
 
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.2.3 (patch)
 
 Changes since v1.2.2:
 
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.2.2 (patch)
 
@@ -272,39 +279,39 @@ No significant changes detected since v1.2.1.
 
 Changes since v1.2.0:
 
-- Bump the ktsu group with 7 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 7 updates (dependabot[bot])
 
 ## v1.2.0 (minor)
 
 Changes since v1.1.0:
 
-- Report a failed stage as staging, not as committing ([@Claude](https://github.com/Claude))
-- Move the commit and push git work into GitCli so it can be tested ([@Claude](https://github.com/Claude))
-- [minor] Implement Commit and Push ([@Claude](https://github.com/Claude))
-- [patch] Wire up Pull and stop advertising unimplemented Commit and Push (#393) ([@matt-edmondson](https://github.com/matt-edmondson))
-- ci: make the SonarQube quality gate opt in [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- ci: adopt the unified dotnet workflow [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- Merge origin/main into main ([@matt-edmondson](https://github.com/matt-edmondson))
-- Trim TAGS.md to 20 topics so dotnet and csharp survive the cap ([@matt-edmondson](https://github.com/matt-edmondson))
+- Report a failed stage as staging, not as committing (Claude)
+- Move the commit and push git work into GitCli so it can be tested (Claude)
+- [minor] Implement Commit and Push (Claude)
+- [patch] Wire up Pull and stop advertising unimplemented Commit and Push (#393) (matt-edmondson)
+- ci: make the SonarQube quality gate opt in [patch] (matt-edmondson)
+- ci: adopt the unified dotnet workflow [patch] (matt-edmondson)
+- Merge origin/main into main (matt-edmondson)
+- Trim TAGS.md to 20 topics so dotnet and csharp survive the cap (matt-edmondson)
 
 ## v1.1.5 (patch)
 
 Changes since v1.1.4:
 
-- [patch] Wire up Pull and stop advertising unimplemented Commit and Push (#393) ([@matt-edmondson](https://github.com/matt-edmondson))
+- [patch] Wire up Pull and stop advertising unimplemented Commit and Push (#393) (matt-edmondson)
 
 ## v1.1.4 (patch)
 
 Changes since v1.1.3:
 
-- ci: make the SonarQube quality gate opt in [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
-- ci: adopt the unified dotnet workflow [patch] ([@matt-edmondson](https://github.com/matt-edmondson))
+- ci: make the SonarQube quality gate opt in [patch] (matt-edmondson)
+- ci: adopt the unified dotnet workflow [patch] (matt-edmondson)
 
 ## v1.1.3 (patch)
 
 Changes since v1.1.2:
 
-- Bump the ktsu group with 8 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 8 updates (dependabot[bot])
 
 ## v1.1.2 (patch)
 
@@ -314,411 +321,411 @@ No significant changes detected since v1.1.1.
 
 Changes since v1.1.0:
 
-- Merge origin/main into main ([@matt-edmondson](https://github.com/matt-edmondson))
-- Trim TAGS.md to 20 topics so dotnet and csharp survive the cap ([@matt-edmondson](https://github.com/matt-edmondson))
+- Merge origin/main into main (matt-edmondson)
+- Trim TAGS.md to 20 topics so dotnet and csharp survive the cap (matt-edmondson)
 
 ## v1.1.0 (minor)
 
 Changes since v1.0.0:
 
-- [minor] Replace LibGit2Sharp with the git command line ([@matt-edmondson](https://github.com/matt-edmondson))
-- chore: store icon.png in LFS as .gitattributes declares ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: broaden TAGS.md for better topic coverage ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
-- Fix build against ktsu.Sdk 2.27.0 ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .runsettings ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .editorconfig ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .gitattributes ([@KtsuTools](https://github.com/KtsuTools))
-- Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .github\workflows\dependabot-merge.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Remove legacy build scripts ([@matt-edmondson](https://github.com/matt-edmondson))
+- [minor] Replace LibGit2Sharp with the git command line (matt-edmondson)
+- chore: store icon.png in LFS as .gitattributes declares (matt-edmondson)
+- docs: scope build badge to the default branch (matt-edmondson)
+- docs: broaden TAGS.md for better topic coverage (matt-edmondson)
+- docs: correct README, DESCRIPTION and TAGS metadata (matt-edmondson)
+- Fix build against ktsu.Sdk 2.27.0 (matt-edmondson)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Sync .runsettings (KtsuTools)
+- Sync .editorconfig (KtsuTools)
+- Sync .gitattributes (KtsuTools)
+- Sync global.json (KtsuTools)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Sync .github\workflows\dependabot-merge.yml (KtsuTools)
+- Add TAGS.md with NuGet package tags (matt-edmondson)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Remove legacy build scripts (matt-edmondson)
 
 ## v1.0.42 (patch)
 
 Changes since v1.0.41:
 
-- chore: store icon.png in LFS as .gitattributes declares ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: scope build badge to the default branch ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: broaden TAGS.md for better topic coverage ([@matt-edmondson](https://github.com/matt-edmondson))
-- docs: correct README, DESCRIPTION and TAGS metadata ([@matt-edmondson](https://github.com/matt-edmondson))
+- chore: store icon.png in LFS as .gitattributes declares (matt-edmondson)
+- docs: scope build badge to the default branch (matt-edmondson)
+- docs: broaden TAGS.md for better topic coverage (matt-edmondson)
+- docs: correct README, DESCRIPTION and TAGS metadata (matt-edmondson)
 
 ## v1.0.41 (patch)
 
 Changes since v1.0.40:
 
-- Fix build against ktsu.Sdk 2.27.0 ([@matt-edmondson](https://github.com/matt-edmondson))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .runsettings ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .editorconfig ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .gitattributes ([@KtsuTools](https://github.com/KtsuTools))
-- Sync global.json ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
-- Sync .github\workflows\dependabot-merge.yml ([@KtsuTools](https://github.com/KtsuTools))
+- Fix build against ktsu.Sdk 2.27.0 (matt-edmondson)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Sync .runsettings (KtsuTools)
+- Sync .editorconfig (KtsuTools)
+- Sync .gitattributes (KtsuTools)
+- Sync global.json (KtsuTools)
+- Sync .github\workflows\dotnet.yml (KtsuTools)
+- Sync .github\workflows\dependabot-merge.yml (KtsuTools)
 
 ## v1.0.40 (patch)
 
 Changes since v1.0.39:
 
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\dependabot.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .gitignore ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .gitattributes ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync global.json ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
+- Sync .github\dependabot.yml (ktsu[bot])
+- Sync .gitignore (ktsu[bot])
+- Sync .gitattributes (ktsu[bot])
+- Sync global.json (ktsu[bot])
 
 ## v1.0.39 (patch)
 
 Changes since v1.0.38:
 
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.38 (patch)
 
 Changes since v1.0.37:
 
-- Bump OpenAI from 2.10.0 to 2.11.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 3 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump OpenAI from 2.10.0 to 2.11.0 (dependabot[bot])
+- Bump the ktsu group with 3 updates (dependabot[bot])
 
 ## v1.0.37 (patch)
 
 Changes since v1.0.36:
 
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.36 (patch)
 
 Changes since v1.0.35:
 
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.35 (patch)
 
 Changes since v1.0.34:
 
-- Bump Polyfill from 10.6.0 to 10.7.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.6.0 to 10.7.0 (dependabot[bot])
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.34 (patch)
 
 Changes since v1.0.33:
 
-- Bump Polyfill from 10.5.1 to 10.6.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.5.1 to 10.6.0 (dependabot[bot])
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.33 (patch)
 
 Changes since v1.0.32:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.32 (patch)
 
 Changes since v1.0.31:
 
-- Bump MSTest.Sdk from 4.2.2 to 4.2.3 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.2.2 to 4.2.3 (dependabot[bot])
 
 ## v1.0.31 (patch)
 
 Changes since v1.0.30:
 
-- Bump Polyfill from 10.5.0 to 10.5.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.5.0 to 10.5.1 (dependabot[bot])
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.30 (patch)
 
 Changes since v1.0.29:
 
-- Add TAGS.md with NuGet package tags ([@matt-edmondson](https://github.com/matt-edmondson))
+- Add TAGS.md with NuGet package tags (matt-edmondson)
 
 ## v1.0.29 (patch)
 
 Changes since v1.0.28:
 
-- Bump Polyfill from 10.4.0 to 10.5.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.4.0 to 10.5.0 (dependabot[bot])
 
 ## v1.0.28 (patch)
 
 Changes since v1.0.27:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.27 (patch)
 
 Changes since v1.0.26:
 
-- Bump Polyfill from 10.3.0 to 10.4.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.3.0 to 10.4.0 (dependabot[bot])
 
 ## v1.0.26 (patch)
 
 Changes since v1.0.25:
 
-- Bump MSTest.Sdk from 4.2.1 to 4.2.2 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.2.1 to 4.2.2 (dependabot[bot])
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.25 (patch)
 
 Changes since v1.0.24:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.24 (patch)
 
 Changes since v1.0.23:
 
-- Bump Polyfill from 10.1.1 to 10.3.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.1.1 to 10.3.0 (dependabot[bot])
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.23 (patch)
 
 Changes since v1.0.22:
 
-- Bump Polyfill from 10.0.0 to 10.1.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 10.0.0 to 10.1.1 (dependabot[bot])
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.22 (patch)
 
 Changes since v1.0.21:
 
-- Bump MSTest.Sdk from 4.1.0 to 4.2.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump MSTest.Sdk from 4.1.0 to 4.2.1 (dependabot[bot])
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.21 (patch)
 
 Changes since v1.0.20:
 
-- Bump OpenAI from 2.9.1 to 2.10.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump OpenAI from 2.9.1 to 2.10.0 (dependabot[bot])
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.20 (patch)
 
 Changes since v1.0.19:
 
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.19 (patch)
 
 Changes since v1.0.18:
 
-- Bump Polyfill from 9.22.0 to 9.23.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump Polyfill from 9.18.0 to 9.22.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.22.0 to 9.23.0 (dependabot[bot])
+- Bump Polyfill from 9.18.0 to 9.22.0 (dependabot[bot])
 
 ## v1.0.18 (patch)
 
 Changes since v1.0.17:
 
-- Bump Polyfill from 9.17.0 to 9.18.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.17.0 to 9.18.0 (dependabot[bot])
 
 ## v1.0.17 (patch)
 
 Changes since v1.0.16:
 
-- Bump Polyfill from 9.15.0 to 9.17.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.15.0 to 9.17.0 (dependabot[bot])
 
 ## v1.0.16 (patch)
 
 Changes since v1.0.15:
 
-- Bump Polyfill from 9.13.0 to 9.15.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump OpenAI from 2.9.0 to 2.9.1 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.13.0 to 9.15.0 (dependabot[bot])
+- Bump OpenAI from 2.9.0 to 2.9.1 (dependabot[bot])
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.15 (patch)
 
 Changes since v1.0.14:
 
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.14 (patch)
 
 Changes since v1.0.13:
 
-- Bump OpenAI from 2.8.0 to 2.9.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump OpenAI from 2.8.0 to 2.9.0 (dependabot[bot])
 
 ## v1.0.13 (patch)
 
 Changes since v1.0.12:
 
-- Bump Polyfill from 9.11.0 to 9.12.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 2 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.11.0 to 9.12.0 (dependabot[bot])
+- Bump the ktsu group with 2 updates (dependabot[bot])
 
 ## v1.0.12 (patch)
 
 Changes since v1.0.11:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.11 (patch)
 
 Changes since v1.0.10:
 
-- Bump Polyfill from 9.10.0 to 9.11.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.10.0 to 9.11.0 (dependabot[bot])
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.10 (patch)
 
 Changes since v1.0.9:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.9 (patch)
 
 Changes since v1.0.8:
 
-- Bump Polyfill from 9.9.0 to 9.10.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump Polyfill from 9.9.0 to 9.10.0 (dependabot[bot])
 
 ## v1.0.8 (patch)
 
 Changes since v1.0.7:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.7 (patch)
 
 Changes since v1.0.6:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.6 (patch)
 
 Changes since v1.0.5:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.5 (patch)
 
 Changes since v1.0.4:
 
-- Sync .github\workflows\dotnet.yml ([@KtsuTools](https://github.com/KtsuTools))
+- Sync .github\workflows\dotnet.yml (KtsuTools)
 
 ## v1.0.4 (patch)
 
 Changes since v1.0.3:
 
-- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Merge remote-tracking branch 'refs/remotes/origin/main' (ktsu[bot])
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
 
 ## v1.0.3 (patch)
 
 Changes since v1.0.2:
 
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Bump Polyfill from 9.8.1 to 9.9.0 ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 6 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
+- Bump Polyfill from 9.8.1 to 9.9.0 (dependabot[bot])
+- Bump the ktsu group with 6 updates (dependabot[bot])
 
 ## v1.0.2 (patch)
 
 Changes since v1.0.1:
 
-- Remove legacy build scripts ([@matt-edmondson](https://github.com/matt-edmondson))
+- Remove legacy build scripts (matt-edmondson)
 
 ## v1.0.1 (patch)
 
 Changes since v1.0.0:
 
-- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync .github\workflows\dotnet.yml ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync global.json ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Bump the ktsu group with 4 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
-- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync scripts\update-winget-manifests.ps1 ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Merge remote-tracking branch 'refs/remotes/origin/main' (ktsu[bot])
+- Sync .github\workflows\dotnet.yml (ktsu[bot])
+- Sync global.json (ktsu[bot])
+- Bump the ktsu group with 4 updates (dependabot[bot])
+- Bump the ktsu group with 1 update (dependabot[bot])
+- Merge remote-tracking branch 'refs/remotes/origin/main' (ktsu[bot])
+- Sync scripts\update-winget-manifests.ps1 (ktsu[bot])
 
 ## v1.0.1-pre.3 (prerelease)
 
 Changes since v1.0.1-pre.2:
 
-- Bump the ktsu group with 4 updates ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 4 updates (dependabot[bot])
 
 ## v1.0.1-pre.2 (prerelease)
 
 Changes since v1.0.1-pre.1:
 
-- Bump the ktsu group with 1 update ([@dependabot[bot]](https://github.com/dependabot[bot]))
+- Bump the ktsu group with 1 update (dependabot[bot])
 
 ## v1.0.1-pre.1 (prerelease)
 
 Changes since v1.0.0:
 
-- Merge remote-tracking branch 'refs/remotes/origin/main' ([@ktsu[bot]](https://github.com/ktsu[bot]))
-- Sync scripts\update-winget-manifests.ps1 ([@ktsu[bot]](https://github.com/ktsu[bot]))
+- Merge remote-tracking branch 'refs/remotes/origin/main' (ktsu[bot])
+- Sync scripts\update-winget-manifests.ps1 (ktsu[bot])
 
 ## v1.0.0 (major)
 
-- Update package versions and target framework in project files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add CLAUDE.md for project guidance and architecture overview ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor using directives and update type initializations for consistency ([@matt-edmondson](https://github.com/matt-edmondson))
-- Remove .github\workflows\project.yml ([@matt-edmondson](https://github.com/matt-edmondson))
-- Enhance CI/CD workflow and update winget manifest script for better project detection ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update .editorconfig, .gitignore, and .runsettings; modify PSBuild.psm1 for improved build and test processes ([@matt-edmondson](https://github.com/matt-edmondson))
-- Remove obsolete build configuration files and add copyright notices to source files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update packages ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add LICENSE template ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update packages ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add documentation comments ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add automation scripts for metadata and version management ([@matt-edmondson](https://github.com/matt-edmondson))
-- Renamed metadata files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Remove obsolete LICENSE and setup files; add new LICENSE.md ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update ktsu.AppDataStorage and ImGui package versions to latest releases ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update ktsu.AppDataStorage and ImGui package versions ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update ktsu.Extensions and ImGui package versions ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update package references to latest versions and add ILCompiler and ILLink.Tasks ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add Azure DevOps support and update GitHub client header ([@matt-edmondson](https://github.com/matt-edmondson))
-- Delete global.json ([@matt-edmondson](https://github.com/matt-edmondson))
-- Re-enable fetching and add a log queue to keep the length under control ([@matt-edmondson](https://github.com/matt-edmondson))
-- Integrate new library versions ([@matt-edmondson](https://github.com/matt-edmondson))
-- Integrate new library versions ([@matt-edmondson](https://github.com/matt-edmondson))
-- Delete .github/workflows/dotnet.yml ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update namespace to ktsu ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update namespace to ktsu ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update namespace to ktsu ([@matt-edmondson](https://github.com/matt-edmondson))
-- Start adding openai functionality ([@matt-edmondson](https://github.com/matt-edmondson))
-- Fix sorting on propagate file dialog ([@matt-edmondson](https://github.com/matt-edmondson))
-- Fix clone task ([@matt-edmondson](https://github.com/matt-edmondson))
-- Refactor code to remove redundant comments and improve clarity ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update dotnet.yml ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update Directory.Build.targets ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update dotnet.yml ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update dotnet.yml ([@matt-edmondson](https://github.com/matt-edmondson))
-- ktsu.io.ImGuiWidgets 1.0.0-alpha.28 ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update Directory.Build.targets ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update Directory.Build.props ([@matt-edmondson](https://github.com/matt-edmondson))
-- dotnet 8 ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update build config ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update LICENSE ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update nuget.config ([@matt-edmondson](https://github.com/matt-edmondson))
-- Create nuget.config ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update LICENSE ([@matt-edmondson](https://github.com/matt-edmondson))
-- Stop a crash on missing credentials ([@matt-edmondson](https://github.com/matt-edmondson))
-- Uncomment propagate logic ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update .editorconfig ([@matt-edmondson](https://github.com/matt-edmondson))
-- Create dependabot-merge.yml ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add cross-repo file propagation ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update dependabot.yml ([@matt-edmondson](https://github.com/matt-edmondson))
-- Migrate to nested Directory.Build.props ([@matt-edmondson](https://github.com/matt-edmondson))
-- Create dependabot.yml ([@matt-edmondson](https://github.com/matt-edmondson))
-- Make window resizing and repositioning persist between app restarts ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add taking code blacks from left/right in the diff window ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update editorconfig to remove discard warnings ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add file browser to give/take/delete files that exist in one repo but not the other ([@matt-edmondson](https://github.com/matt-edmondson))
-- Fix issue with losing the page when restarting the application and refactor the switch page code ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add diff tool to compare files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add list of diffed files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Replace windows dependencies with cross platform versions ([@matt-edmondson](https://github.com/matt-edmondson))
-- Use table formatting for similar repos list, and hoist logic for switching the currently viewed repo into a method ([@matt-edmondson](https://github.com/matt-edmondson))
-- Update cloned status and similar repos when cloning a new repo ([@matt-edmondson](https://github.com/matt-edmondson))
-- Try loading the repository instead of just checking the directory exists when checking if a repo is cloned ([@matt-edmondson](https://github.com/matt-edmondson))
-- Show the list of similar repos sorted by how closely they match ([@matt-edmondson](https://github.com/matt-edmondson))
-- Use DiffPlex to do textual diffing for similar files ([@matt-edmondson](https://github.com/matt-edmondson))
-- Add WIP version finding similar repos ([@matt-edmondson](https://github.com/matt-edmondson))
-- Take latest ImGuiApp ([@matt-edmondson](https://github.com/matt-edmondson))
-- Decouple GitHub functionality from generic Git functionality and introduce scanning disk for repos ([@matt-edmondson](https://github.com/matt-edmondson))
-- Change repo names to be qualified with the owners name, serialize the state of collapsible panels ([@matt-edmondson](https://github.com/matt-edmondson))
-- Early functionality ([@matt-edmondson](https://github.com/matt-edmondson))
-- Initial commit ([@matt-edmondson](https://github.com/matt-edmondson))
+- Update package versions and target framework in project files (matt-edmondson)
+- Add CLAUDE.md for project guidance and architecture overview (matt-edmondson)
+- Refactor using directives and update type initializations for consistency (matt-edmondson)
+- Remove .github\workflows\project.yml (matt-edmondson)
+- Enhance CI/CD workflow and update winget manifest script for better project detection (matt-edmondson)
+- Update .editorconfig, .gitignore, and .runsettings; modify PSBuild.psm1 for improved build and test processes (matt-edmondson)
+- Remove obsolete build configuration files and add copyright notices to source files (matt-edmondson)
+- Update packages (matt-edmondson)
+- Add LICENSE template (matt-edmondson)
+- Update packages (matt-edmondson)
+- Add documentation comments (matt-edmondson)
+- Add automation scripts for metadata and version management (matt-edmondson)
+- Renamed metadata files (matt-edmondson)
+- Remove obsolete LICENSE and setup files; add new LICENSE.md (matt-edmondson)
+- Update ktsu.AppDataStorage and ImGui package versions to latest releases (matt-edmondson)
+- Update ktsu.AppDataStorage and ImGui package versions (matt-edmondson)
+- Update ktsu.Extensions and ImGui package versions (matt-edmondson)
+- Update package references to latest versions and add ILCompiler and ILLink.Tasks (matt-edmondson)
+- Add Azure DevOps support and update GitHub client header (matt-edmondson)
+- Delete global.json (matt-edmondson)
+- Re-enable fetching and add a log queue to keep the length under control (matt-edmondson)
+- Integrate new library versions (matt-edmondson)
+- Integrate new library versions (matt-edmondson)
+- Delete .github/workflows/dotnet.yml (matt-edmondson)
+- Update namespace to ktsu (matt-edmondson)
+- Update namespace to ktsu (matt-edmondson)
+- Update namespace to ktsu (matt-edmondson)
+- Start adding openai functionality (matt-edmondson)
+- Fix sorting on propagate file dialog (matt-edmondson)
+- Fix clone task (matt-edmondson)
+- Refactor code to remove redundant comments and improve clarity (matt-edmondson)
+- Update dotnet.yml (matt-edmondson)
+- Update Directory.Build.targets (matt-edmondson)
+- Update dotnet.yml (matt-edmondson)
+- Update dotnet.yml (matt-edmondson)
+- ktsu.io.ImGuiWidgets 1.0.0-alpha.28 (matt-edmondson)
+- Update Directory.Build.targets (matt-edmondson)
+- Update Directory.Build.props (matt-edmondson)
+- dotnet 8 (matt-edmondson)
+- Update build config (matt-edmondson)
+- Update LICENSE (matt-edmondson)
+- Update nuget.config (matt-edmondson)
+- Create nuget.config (matt-edmondson)
+- Update LICENSE (matt-edmondson)
+- Stop a crash on missing credentials (matt-edmondson)
+- Uncomment propagate logic (matt-edmondson)
+- Update .editorconfig (matt-edmondson)
+- Create dependabot-merge.yml (matt-edmondson)
+- Add cross-repo file propagation (matt-edmondson)
+- Update dependabot.yml (matt-edmondson)
+- Migrate to nested Directory.Build.props (matt-edmondson)
+- Create dependabot.yml (matt-edmondson)
+- Make window resizing and repositioning persist between app restarts (matt-edmondson)
+- Add taking code blacks from left/right in the diff window (matt-edmondson)
+- Update editorconfig to remove discard warnings (matt-edmondson)
+- Add file browser to give/take/delete files that exist in one repo but not the other (matt-edmondson)
+- Fix issue with losing the page when restarting the application and refactor the switch page code (matt-edmondson)
+- Add diff tool to compare files (matt-edmondson)
+- Add list of diffed files (matt-edmondson)
+- Replace windows dependencies with cross platform versions (matt-edmondson)
+- Use table formatting for similar repos list, and hoist logic for switching the currently viewed repo into a method (matt-edmondson)
+- Update cloned status and similar repos when cloning a new repo (matt-edmondson)
+- Try loading the repository instead of just checking the directory exists when checking if a repo is cloned (matt-edmondson)
+- Show the list of similar repos sorted by how closely they match (matt-edmondson)
+- Use DiffPlex to do textual diffing for similar files (matt-edmondson)
+- Add WIP version finding similar repos (matt-edmondson)
+- Take latest ImGuiApp (matt-edmondson)
+- Decouple GitHub functionality from generic Git functionality and introduce scanning disk for repos (matt-edmondson)
+- Change repo names to be qualified with the owners name, serialize the state of collapsible panels (matt-edmondson)
+- Early functionality (matt-edmondson)
+- Initial commit (matt-edmondson)
 
