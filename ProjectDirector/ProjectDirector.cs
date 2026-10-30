@@ -62,6 +62,11 @@ internal sealed class ProjectDirector
 	/// </summary>
 	private CloneTracker Clones { get; } = new();
 
+	/// <summary>
+	/// The background fetches, bounded and one per repository, so stale repositories cannot all fetch at once.
+	/// </summary>
+	private FetchScheduler Fetches { get; } = new(FetchScheduler.DefaultMaxConcurrent);
+
 	// private ChatClient ChatClient { get; init; }
 
 	private static void Main(string[] _) => ImGuiApp.Start(new ProjectDirector().BuildConfig());
@@ -458,14 +463,16 @@ internal sealed class ProjectDirector
 	private void FetchRepo(GitRepository repo)
 	{
 		FullyQualifiedLocalRepoPath repoPath = repo.LocalPath;
-		repo.LastFetchTime = DateTime.UtcNow;
-		QueueSaveOptions();
 
 		// Authentication is the platform credential helper's job now, which is also what makes SSH
 		// remotes work without any configuration here.
-		Task task = new(() => QueueGitLog($"Fetching {repo.RemotePath}", GitCli.RunIn(repoPath, "fetch", "origin")));
-
-		task.Start();
+		if (Fetches.TryRun(repoPath, () => QueueGitLog($"Fetching {repo.RemotePath}", GitCli.RunIn(repoPath, "fetch", "origin")), out _))
+		{
+			// Backdated by a random amount so repositories fetched together drift apart instead of
+			// going stale on the same frame again.
+			repo.LastFetchTime = DateTime.UtcNow - FetchScheduler.Jitter(repo.MinFetchIntervalSeconds, Random.Shared);
+			QueueSaveOptions();
+		}
 	}
 
 	/// <summary>
