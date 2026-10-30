@@ -19,7 +19,6 @@ using ktsu.ImGui.Probes;
 using ktsu.ImGui.Widgets;
 using ktsu.ImGui.Styler;
 using Octokit;
-// using OpenAI.Chat;
 using Semantics.Paths;
 
 #pragma warning disable CA1506
@@ -62,8 +61,6 @@ internal sealed class ProjectDirector
 	/// </summary>
 	private CloneTracker Clones { get; } = new();
 
-	// private ChatClient ChatClient { get; init; }
-
 	private static void Main(string[] _) => ImGuiApp.Start(new ProjectDirector().BuildConfig());
 
 	/// <summary>
@@ -101,7 +98,6 @@ internal sealed class ProjectDirector
 		_ = MakeLoadedOptionsSafe(Options, QueueLog);
 
 		Options.Save();
-		// ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
 		DividerDiff = new("DiffDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
 		DividerContainerCols = new("VerticalDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
 		DividerContainerRows = new("HorizontalDivider", DividerResized, ImGuiWidgets.DividerLayout.Rows);
@@ -2338,43 +2334,6 @@ internal sealed class ProjectDirector
 						{
 							shouldOpenPopup |= true;
 							Options.PropagatePath = path;
-						}
-
-						if (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-						{
-							if (ImGui.Selectable($"Generate Tests"))
-							{
-
-							}
-
-							if (ImGui.Selectable($"Generate Documentation Comments"))
-							{
-
-							}
-
-							// 							if (ImGui.Selectable($"Generate Readme"))
-							// 							{
-							// 								GitRepository repo = Options.Repos[Options.BaseRepo];
-							// 								IEnumerable<string> csFiles = Directory.EnumerateFiles(repo.LocalPath, "*.cs", SearchOption.AllDirectories);
-							// 								StringBuilder allFileContents = new();
-							// 								foreach (string file in csFiles)
-							// 								{
-							// 									string relativePath = file.RemovePrefix(repo.LocalPath);
-							// 									allFileContents.AppendLine($"Begin: {relativePath}\n\n" + File.ReadAllText(file) + $"\nEnd: {relativePath}\n\n");
-							// 								}
-							// 
-							// 								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("write a github readme file for a project that includes the following files:\n\n" + allFileContents.ToString());
-							// 								QueueLog($"[ASSISTANT]: {response.Value}");
-							// 							}
-							// 
-							// 							if (ImGui.Selectable($"Summarize"))
-							// 							{
-							// 								GitRepository repo = Options.Repos[Options.BaseRepo];
-							// 								string filePath = Path.Combine(repo.LocalPath, path);
-							// 								string fileContents = File.ReadAllText(filePath);
-							// 								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
-							// 								QueueLog($"[ASSISTANT]: {response.Value}");
-							// 							}
 						}
 
 						ImGui.EndPopup();
