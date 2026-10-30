@@ -29,5 +29,5 @@ public sealed class UnusedDependencyTests
 	[DataRow("OpenAI.dll")]
 	[DataRow("ImGui.NET.dll")]
 	public void UnusedPackageIsNotShipped(string assembly) =>
-		Assert.IsFalse(File.Exists(Path.Combine(AppContext.BaseDirectory, assembly)), $"{assembly} is still in the output");
+		Assert.IsFalse(File.Exists(Path.Join(AppContext.BaseDirectory, assembly)), $"{assembly} is still in the output");
 }
