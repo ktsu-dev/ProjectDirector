@@ -894,7 +894,12 @@ internal sealed class ProjectDirector
 		ImGuiProbes.MarkItem("panel", name);
 		if (expanded)
 		{
+			// CollapsingHeader opens no ID scope of its own, so without this two panels drawing a widget
+			// with the same label (each owner's ".github" row) would give both the same ID, and ImGui would
+			// hand a click on the second to the first.
+			ImGui.PushID(name);
 			contentDelegate?.Invoke();
+			ImGui.PopID();
 			open = true;
 		}
 		else
@@ -1020,7 +1025,7 @@ internal sealed class ProjectDirector
 					ImGui.SameLine();
 					bool isSelected = Options.BaseRepo == repoName;
 					bool clicked = ImGui.Selectable(gitHubRepo.RepoName, ref isSelected);
-					ImGuiProbes.MarkItem("repo", gitHubRepo.RepoName);
+					ImGuiProbes.MarkItem("repo", repoName);
 					if (clicked)
 					{
 						SwitchPage(repoName);
