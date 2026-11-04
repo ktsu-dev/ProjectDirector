@@ -11,7 +11,6 @@ using Semantics.Strings;
 
 #pragma warning disable CS1591 // Missing XML comment for publicly visible type or member
 
-public sealed record class OpenAIToken : SemanticString<OpenAIToken> { }
 public sealed record class GitRemotePath : SemanticString<GitRemotePath> { }
 public sealed record class GitRemotePathPrefix : SemanticString<GitRemotePathPrefix> { }
 public sealed record class FullyQualifiedLocalRepoPath : SemanticString<FullyQualifiedLocalRepoPath> { }
@@ -64,7 +63,6 @@ public sealed class ProjectDirectorOptions : AppData<ProjectDirectorOptions>
 		}
 	}
 
-	public OpenAIToken OpenAIToken { get; set; } = new();
 	public Dictionary<string, bool> PanelStates { get; init; } = [];
 	public Dictionary<string, List<float>> DividerStates { get; init; } = [];
 

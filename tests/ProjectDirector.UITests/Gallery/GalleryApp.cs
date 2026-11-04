@@ -39,7 +39,13 @@ internal sealed class GalleryApp : IDisposable
 	/// <summary>Starts the application at the given display size.</summary>
 	/// <param name="display">The size of the window the application draws into.</param>
 	/// <returns>The running application.</returns>
-	internal static GalleryApp Start((int Width, int Height) display)
+	internal static GalleryApp Start((int Width, int Height) display) => Start(display, GalleryRepositories.CreateOptions);
+
+	/// <summary>Starts the application at the given display size over settings the caller builds.</summary>
+	/// <param name="display">The size of the window the application draws into.</param>
+	/// <param name="createOptions">Builds the settings the application runs on, after the settings file and secret store are redirected.</param>
+	/// <returns>The running application.</returns>
+	internal static GalleryApp Start((int Width, int Height) display, Func<ProjectDirectorOptions> createOptions)
 	{
 		AppData.ConfigureForTesting(() => new MockFileSystem());
 		CredentialCache credentials = new(new InMemoryCredentialStore());
@@ -47,7 +53,7 @@ internal sealed class GalleryApp : IDisposable
 
 		try
 		{
-			ProjectDirectorOptions options = GalleryRepositories.CreateOptions();
+			ProjectDirectorOptions options = createOptions();
 			ProjectDirector director = new(options);
 			ImGuiAppHarness harness = ImGuiAppHarness.Start(director.BuildConfig(), new HarnessOptions
 			{
@@ -68,7 +74,7 @@ internal sealed class GalleryApp : IDisposable
 	/// <param name="repo">The repository's own name.</param>
 	internal void SelectRepository(string repo)
 	{
-		Harness.Click($"repo/{repo}");
+		Harness.Click($"repo/{GalleryRepositories.FullName(repo)}");
 		GitRepository selected = Options.Repos[GalleryRepositories.FullName(repo)];
 
 		// The comparison runs git on a background task, which publishes whenever it finishes rather

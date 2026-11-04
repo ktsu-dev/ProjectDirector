@@ -19,7 +19,6 @@ using ktsu.ImGui.Probes;
 using ktsu.ImGui.Widgets;
 using ktsu.ImGui.Styler;
 using Octokit;
-// using OpenAI.Chat;
 using Semantics.Paths;
 
 #pragma warning disable CA1506
@@ -67,8 +66,6 @@ internal sealed class ProjectDirector
 	/// </summary>
 	private FetchScheduler Fetches { get; } = new(FetchScheduler.DefaultMaxConcurrent);
 
-	// private ChatClient ChatClient { get; init; }
-
 	private static void Main(string[] _) => ImGuiApp.Start(new ProjectDirector().BuildConfig());
 
 	/// <summary>
@@ -82,6 +79,9 @@ internal sealed class ProjectDirector
 	internal ImGuiAppConfig BuildConfig() => new()
 	{
 		Title = "Project Director",
+
+		// The options are loaded by the constructor, so this is the state the last run saved.
+		InitialWindowState = Options.WindowState,
 		OnAppMenu = ShowMenu,
 		OnMoveOrResize = WindowResized,
 		OnRender = Tick,
@@ -106,7 +106,6 @@ internal sealed class ProjectDirector
 		_ = MakeLoadedOptionsSafe(Options, QueueLog);
 
 		Options.Save();
-		// ChatClient = new(model: "gpt-4o", new ApiKeyCredential(Options.OpenAIToken));
 		DividerDiff = new("DiffDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
 		DividerContainerCols = new("VerticalDivider", DividerResized, ImGuiWidgets.DividerLayout.Columns);
 		DividerContainerRows = new("HorizontalDivider", DividerResized, ImGuiWidgets.DividerLayout.Rows);
@@ -901,7 +900,12 @@ internal sealed class ProjectDirector
 		ImGuiProbes.MarkItem("panel", name);
 		if (expanded)
 		{
+			// CollapsingHeader opens no ID scope of its own, so without this two panels drawing a widget
+			// with the same label (each owner's ".github" row) would give both the same ID, and ImGui would
+			// hand a click on the second to the first.
+			ImGui.PushID(name);
 			contentDelegate?.Invoke();
+			ImGui.PopID();
 			open = true;
 		}
 		else
@@ -1027,7 +1031,7 @@ internal sealed class ProjectDirector
 					ImGui.SameLine();
 					bool isSelected = Options.BaseRepo == repoName;
 					bool clicked = ImGui.Selectable(gitHubRepo.RepoName, ref isSelected);
-					ImGuiProbes.MarkItem("repo", gitHubRepo.RepoName);
+					ImGuiProbes.MarkItem("repo", repoName);
 					if (clicked)
 					{
 						SwitchPage(repoName);
@@ -2345,43 +2349,6 @@ internal sealed class ProjectDirector
 						{
 							shouldOpenPopup |= true;
 							Options.PropagatePath = path;
-						}
-
-						if (path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-						{
-							if (ImGui.Selectable($"Generate Tests"))
-							{
-
-							}
-
-							if (ImGui.Selectable($"Generate Documentation Comments"))
-							{
-
-							}
-
-							// 							if (ImGui.Selectable($"Generate Readme"))
-							// 							{
-							// 								GitRepository repo = Options.Repos[Options.BaseRepo];
-							// 								IEnumerable<string> csFiles = Directory.EnumerateFiles(repo.LocalPath, "*.cs", SearchOption.AllDirectories);
-							// 								StringBuilder allFileContents = new();
-							// 								foreach (string file in csFiles)
-							// 								{
-							// 									string relativePath = file.RemovePrefix(repo.LocalPath);
-							// 									allFileContents.AppendLine($"Begin: {relativePath}\n\n" + File.ReadAllText(file) + $"\nEnd: {relativePath}\n\n");
-							// 								}
-							// 
-							// 								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("write a github readme file for a project that includes the following files:\n\n" + allFileContents.ToString());
-							// 								QueueLog($"[ASSISTANT]: {response.Value}");
-							// 							}
-							// 
-							// 							if (ImGui.Selectable($"Summarize"))
-							// 							{
-							// 								GitRepository repo = Options.Repos[Options.BaseRepo];
-							// 								string filePath = Path.Combine(repo.LocalPath, path);
-							// 								string fileContents = File.ReadAllText(filePath);
-							// 								ClientResult<ChatCompletion> response = ChatClient.CompleteChat("summarize the following dotnet file:\n\n" + fileContents);
-							// 								QueueLog($"[ASSISTANT]: {response.Value}");
-							// 							}
 						}
 
 						ImGui.EndPopup();
