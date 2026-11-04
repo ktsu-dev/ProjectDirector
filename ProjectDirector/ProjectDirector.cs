@@ -74,6 +74,9 @@ internal sealed class ProjectDirector
 	internal ImGuiAppConfig BuildConfig() => new()
 	{
 		Title = "Project Director",
+
+		// The options are loaded by the constructor, so this is the state the last run saved.
+		InitialWindowState = Options.WindowState,
 		OnAppMenu = ShowMenu,
 		OnMoveOrResize = WindowResized,
 		OnRender = Tick,
