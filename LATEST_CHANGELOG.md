@@ -1,8 +1,6 @@
-## v1.5.2 (patch)
+## v1.5.3 (patch)
 
-Changes since v1.5.1:
+Changes since v1.5.2:
 
-- [patch] Start the window where the last run left it (#525) (matt-edmondson)
-- [patch] Give each owner's panel its own ImGui ID scope (#524) (matt-edmondson)
-- Remove the unused OpenAI and ImGui.NET packages and the no-op AI menu items [patch] (#517) (matt-edmondson)
+- Bound background fetches and run at most one per repository [patch] (#518) (matt-edmondson)
 
