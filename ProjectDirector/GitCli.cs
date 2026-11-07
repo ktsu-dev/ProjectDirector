@@ -189,10 +189,14 @@ internal static class GitCli
 	/// the loop consumes that entry rather than testing every entry for a prefix: a source path
 	/// such as <c>ab cd.txt</c> has a space in the third position and so is indistinguishable from
 	/// a record by inspection alone. Reporting it would list a file that no longer exists.
+	///
+	/// --untracked-files=all lists every untracked file on its own. Git's default collapses a new
+	/// folder into one <c>dir/</c> record, so the prompt would count a folder of hundreds of files
+	/// as one while <c>add --all</c> commits all of them.
 	/// </remarks>
 	internal static Collection<string> ListPendingChanges(string repositoryPath)
 	{
-		GitResult result = RunIn(repositoryPath, "status", "--porcelain", "-z");
+		GitResult result = RunIn(repositoryPath, "status", "--porcelain", "-z", "--untracked-files=all");
 
 		Collection<string> changes = [];
 		if (!result.Succeeded)
