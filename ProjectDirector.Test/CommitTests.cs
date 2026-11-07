@@ -137,6 +137,38 @@ public sealed class CommitTests
 	}
 
 	/// <summary>
+	/// Every file in a new folder is pending on its own, because <c>add --all</c> stages each of
+	/// them. Git's default status collapses the folder into one <c>dir/</c> record, which would
+	/// tell the user one file is being committed however many the folder holds.
+	/// </summary>
+	[TestMethod]
+	public void EachFileInAnUntrackedFolderIsPending()
+	{
+		// Arrange
+		string root = CreateCommittedRepository();
+
+		try
+		{
+			string folder = Path.Join(root, "newdir");
+			Directory.CreateDirectory(Path.Join(folder, "nested"));
+			File.WriteAllText(Path.Join(folder, "a.txt"), "a\n");
+			File.WriteAllText(Path.Join(folder, "b.txt"), "b\n");
+			File.WriteAllText(Path.Join(folder, "nested", "c.txt"), "c\n");
+
+			// Act
+			Collection<string> changes = GitCli.ListPendingChanges(root);
+
+			// Assert
+			string[] expected = ["newdir/a.txt", "newdir/b.txt", "newdir/nested/c.txt"];
+			CollectionAssert.AreEquivalent(expected, changes);
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
 	/// A path containing a space survives intact, which is what -z buys: without it git quotes such
 	/// a path and the quoting would be shown to the user as part of the name.
 	/// </summary>
