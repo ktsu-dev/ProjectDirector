@@ -120,6 +120,45 @@ public sealed class DiffTakeTests
 		}
 	}
 
+	[TestMethod]
+	public void ATakeIntoAPathThatIsAFolderIsDescribedForTheLogRatherThanThrown()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string folder = Path.Join(root, "file.txt");
+			_ = Directory.CreateDirectory(folder);
+			DateTimeOffset at = new(2026, 11, 7, 2, 30, 0, TimeSpan.Zero);
+
+			string line = DiffTake.Take(folder, ["one"], at);
+
+			StringAssert.StartsWith(line, $"[{at}] Taking a block into {folder} failed: ");
+			Assert.IsTrue(Directory.Exists(folder), "The folder in the way should be left alone.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	[TestMethod]
+	public void ASuccessfulTakeLogsNothing()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string file = Path.Join(root, "file.txt");
+			File.WriteAllText(file, "one\n");
+
+			Assert.AreEqual(string.Empty, DiffTake.Take(file, ["ONE", string.Empty], DateTimeOffset.Now));
+			Assert.AreEqual("ONE\n", File.ReadAllText(file));
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
 	/// <summary>
 	/// A repository that tracks <c>AGENTS.md</c> as a link to <c>CLAUDE.md</c>: taking a block into
 	/// <c>AGENTS.md</c> used to write through the link and overwrite <c>CLAUDE.md</c>. It is refused,

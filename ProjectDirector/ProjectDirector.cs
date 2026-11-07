@@ -1891,12 +1891,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.ArrowButton($"DiffTakeLeft{i}", ImGuiDir.Right))
 			{
-				string? failure = DiffTake.WriteLinesPreservingFormat(Path.Join(repoB.LocalPath, Options.CompareFile), DiffTake.TakeOldIntoNew(diff, block));
-				if (failure is not null)
-				{
-					QueueLog($"[{DateTimeOffset.Now}] Taking a block into {repoB.LocalPath}/{Options.CompareFile} failed: {failure}");
-				}
-
+				QueueLogIfAny(DiffTake.Take(Path.Join(repoB.LocalPath, Options.CompareFile), DiffTake.TakeOldIntoNew(diff, block), DateTimeOffset.Now));
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
 
@@ -1967,12 +1962,7 @@ internal sealed class ProjectDirector
 		{
 			if (ImGui.ArrowButton($"DiffTakeRight{i}", ImGuiDir.Left))
 			{
-				string? failure = DiffTake.WriteLinesPreservingFormat(Path.Join(repoA.LocalPath, Options.CompareFile), DiffTake.TakeNewIntoOld(diff, block));
-				if (failure is not null)
-				{
-					QueueLog($"[{DateTimeOffset.Now}] Taking a block into {repoA.LocalPath}/{Options.CompareFile} failed: {failure}");
-				}
-
+				QueueLogIfAny(DiffTake.Take(Path.Join(repoA.LocalPath, Options.CompareFile), DiffTake.TakeNewIntoOld(diff, block), DateTimeOffset.Now));
 				RefreshFileDiff(repoA, repoB, Options.CompareFile);
 			}
 

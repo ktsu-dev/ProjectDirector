@@ -61,6 +61,19 @@ internal static class DiffTake
 	}
 
 	/// <summary>
+	/// Takes a block into <paramref name="path"/> the way a take arrow does, and describes a failure for the log panel.
+	/// </summary>
+	/// <param name="path">The file to overwrite.</param>
+	/// <param name="lines">The file's new lines, without terminators.</param>
+	/// <param name="at">When the take was made, which stamps the log line.</param>
+	/// <returns>The log line for a failed take, or an empty string when the file was written.</returns>
+	internal static string Take(string path, IEnumerable<string> lines, DateTimeOffset at)
+	{
+		string? failure = WriteLinesPreservingFormat(path, lines);
+		return failure is null ? string.Empty : $"[{at}] Taking a block into {path} failed: {failure}";
+	}
+
+	/// <summary>
 	/// Writes <paramref name="lines"/> over <paramref name="path"/>, keeping the line ending and
 	/// encoding (including any byte order mark) the file already has.
 	/// </summary>
