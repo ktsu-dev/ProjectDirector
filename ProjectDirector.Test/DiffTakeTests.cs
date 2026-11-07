@@ -66,7 +66,7 @@ public sealed class DiffTakeTests
 			File.WriteAllBytes(right, Bytes("one\r\nTWO\r\nthree\r\n"));
 
 			DiffResult diff = Diff(left, right);
-			DiffTake.WriteLinesPreservingFormat(left, DiffTake.TakeNewIntoOld(diff, diff.DiffBlocks.Single()));
+			Assert.IsNull(DiffTake.WriteLinesPreservingFormat(left, DiffTake.TakeNewIntoOld(diff, diff.DiffBlocks.Single())));
 
 			CollectionAssert.AreEqual(Bytes("one\r\nTWO\r\nthree\r\n", bom: true), File.ReadAllBytes(left));
 		}
@@ -88,7 +88,7 @@ public sealed class DiffTakeTests
 			File.WriteAllBytes(right, Bytes("one\r\nTWO\r\nthree\r\n"));
 
 			DiffResult diff = Diff(left, right);
-			DiffTake.WriteLinesPreservingFormat(right, DiffTake.TakeOldIntoNew(diff, diff.DiffBlocks.Single()));
+			Assert.IsNull(DiffTake.WriteLinesPreservingFormat(right, DiffTake.TakeOldIntoNew(diff, diff.DiffBlocks.Single())));
 
 			CollectionAssert.AreEqual(Bytes("one\r\ntwo\r\nthree\r\n"), File.ReadAllBytes(right));
 		}
@@ -110,9 +110,80 @@ public sealed class DiffTakeTests
 			File.WriteAllBytes(right, Bytes("one\r\nTWO\r\nthree\r\n"));
 
 			DiffResult diff = Diff(left, right);
-			DiffTake.WriteLinesPreservingFormat(left, DiffTake.TakeNewIntoOld(diff, diff.DiffBlocks.Single()));
+			Assert.IsNull(DiffTake.WriteLinesPreservingFormat(left, DiffTake.TakeNewIntoOld(diff, diff.DiffBlocks.Single())));
 
 			CollectionAssert.AreEqual(Bytes("one\nTWO\nthree\n"), File.ReadAllBytes(left));
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	[TestMethod]
+	public void ATakeIntoAPathThatIsAFolderIsDescribedForTheLogRatherThanThrown()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string folder = Path.Join(root, "file.txt");
+			_ = Directory.CreateDirectory(folder);
+			DateTimeOffset at = new(2026, 11, 7, 2, 30, 0, TimeSpan.Zero);
+
+			string line = DiffTake.Take(folder, ["one"], at);
+
+			StringAssert.StartsWith(line, $"[{at}] Taking a block into {folder} failed: ");
+			Assert.IsTrue(Directory.Exists(folder), "The folder in the way should be left alone.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	[TestMethod]
+	public void ASuccessfulTakeLogsNothing()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string file = Path.Join(root, "file.txt");
+			File.WriteAllText(file, "one\n");
+
+			Assert.AreEqual(string.Empty, DiffTake.Take(file, ["ONE", string.Empty], DateTimeOffset.Now));
+			Assert.AreEqual("ONE\n", File.ReadAllText(file));
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
+
+	/// <summary>
+	/// A repository that tracks <c>AGENTS.md</c> as a link to <c>CLAUDE.md</c>: taking a block into
+	/// <c>AGENTS.md</c> used to write through the link and overwrite <c>CLAUDE.md</c>. It is refused,
+	/// and the link and its target are both left as they were.
+	/// </summary>
+	[TestMethod]
+	public void TakingABlockIntoASymlinkedFileIsRefusedAndLeavesTheLinkAndItsTarget()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string left = Path.Join(root, "left.md");
+			string target = Path.Join(root, "CLAUDE.md");
+			string link = Path.Join(root, "AGENTS.md");
+			File.WriteAllText(left, "one\nTWO\nthree\n");
+			File.WriteAllText(target, "one\ntwo\nthree\n");
+			_ = File.CreateSymbolicLink(link, "CLAUDE.md");
+
+			DiffResult diff = Diff(left, link);
+			string? failure = DiffTake.WriteLinesPreservingFormat(link, DiffTake.TakeOldIntoNew(diff, diff.DiffBlocks.Single()));
+
+			Assert.IsNotNull(failure);
+			StringAssert.Contains(failure, "symbolic link");
+			Assert.AreEqual("one\ntwo\nthree\n", File.ReadAllText(target), "The link's target should not have been written through.");
+			Assert.AreEqual("CLAUDE.md", new FileInfo(link).LinkTarget, "The link itself should still be there.");
 		}
 		finally
 		{
