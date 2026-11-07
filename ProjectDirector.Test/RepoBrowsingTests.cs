@@ -73,6 +73,52 @@ public sealed class RepoBrowsingTests
 	}
 
 	[TestMethod]
+	public void List_ANameThatIsAFileInTheRepo_ReturnsNothing()
+	{
+		File.WriteAllText(Path.Join(_repoB, "only"), "#!/bin/sh\n");
+
+		Assert.IsEmpty(RepoBrowsing.List(_repoB, "only"));
+	}
+
+	/// <summary>
+	/// A folder the compared repository won't let this process read lists as empty, rather than
+	/// throwing out of the click handler on the render thread. Goes inconclusive rather than passing
+	/// vacuously where a read cannot be denied.
+	/// </summary>
+	[TestMethod]
+	public void List_AFolderThatCannotBeRead_ReturnsNothing()
+	{
+		if (OperatingSystem.IsWindows())
+		{
+			Assert.Inconclusive("Denying a directory read on Windows needs an ACL edit rather than a mode change.");
+			return;
+		}
+
+		string denied = Path.Join(_repoA, "only");
+		File.WriteAllText(Path.Join(denied, "secret.txt"), "hidden\n");
+		try
+		{
+			File.SetUnixFileMode(denied, UnixFileMode.None);
+
+			try
+			{
+				_ = Directory.GetFileSystemEntries(denied);
+				Assert.Inconclusive("This process reads a mode-000 directory anyway, most likely because it is root.");
+			}
+			catch (UnauthorizedAccessException)
+			{
+				// The mode took effect, so List is about to meet a genuinely unreadable folder.
+			}
+
+			Assert.IsEmpty(RepoBrowsing.List(_repoA, "only"));
+		}
+		finally
+		{
+			File.SetUnixFileMode(denied, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
+		}
+	}
+
+	[TestMethod]
 	public void IsDirectory_ANestedFolder_IsAFolder()
 	{
 		Collection<RelativePath> entries = RepoBrowsing.List(_repoA, "src");

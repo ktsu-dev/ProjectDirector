@@ -23,7 +23,7 @@ internal static class RepoBrowsing
 	/// </summary>
 	/// <param name="repoRoot">The repository's local path.</param>
 	/// <param name="browsePath">The folder to list, relative to <paramref name="repoRoot"/>.</param>
-	/// <returns>Each entry relative to <paramref name="repoRoot"/>, in name order ignoring case, or nothing when the folder is not there.</returns>
+	/// <returns>Each entry relative to <paramref name="repoRoot"/>, in name order ignoring case, or nothing when the folder is not there, is a file, or cannot be read.</returns>
 	/// <remarks>
 	/// The file system's own order is whatever that file system keeps: alphabetical on NTFS, by hash
 	/// on ext4. Sorting makes the browsers read the same on every machine.
@@ -36,9 +36,12 @@ internal static class RepoBrowsing
 				.Order(StringComparer.OrdinalIgnoreCase)
 				.Select(entry => RelativePath.Create<RelativePath>(Path.GetRelativePath(repoRoot, entry)))];
 		}
-		catch (DirectoryNotFoundException)
+		catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
 		{
-			// The other repository may not have this folder at all.
+			// The other repository may not have this folder at all, may have a file of the same name
+			// (an IOException on Windows rather than a DirectoryNotFoundException), or may not let it
+			// be read. The compare browser lists a name as a folder when it is one in either
+			// repository, so every one of these reaches here from a click on the render thread.
 			return [];
 		}
 	}
