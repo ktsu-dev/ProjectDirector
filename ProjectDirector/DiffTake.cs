@@ -66,27 +66,45 @@ internal static class DiffTake
 	/// </summary>
 	/// <param name="path">The file to overwrite.</param>
 	/// <param name="lines">The file's new lines, without terminators.</param>
+	/// <returns>Why the file was not written, or null when it was.</returns>
 	/// <remarks>
 	/// A file that does not exist yet, or has no line break to copy, gets
 	/// <see cref="Environment.NewLine"/> and UTF-8 without a BOM, which is what was written before.
+	/// A path that is a symbolic link is refused rather than written through, because writing through
+	/// it changes the link's target: <c>AGENTS.md -&gt; CLAUDE.md</c> would overwrite <c>CLAUDE.md</c>.
+	/// A failure is returned rather than thrown, because the take arrows call this on the render thread.
 	/// </remarks>
-	internal static void WriteLinesPreservingFormat(string path, IEnumerable<string> lines)
+	internal static string? WriteLinesPreservingFormat(string path, IEnumerable<string> lines)
 	{
 		Ensure.NotNull(path);
 		Ensure.NotNull(lines);
 
+		string? link = SymbolicLinks.RefuseToWriteThrough(path);
+		if (link is not null)
+		{
+			return link;
+		}
+
 		Encoding encoding = new UTF8Encoding(encoderShouldEmitUTF8Identifier: false);
 		string newLine = Environment.NewLine;
 
-		if (File.Exists(path))
+		try
 		{
-			using StreamReader reader = new(path, encoding, detectEncodingFromByteOrderMarks: true);
-			string existing = reader.ReadToEnd();
-			encoding = reader.CurrentEncoding;
-			newLine = DetectNewLine(existing) ?? newLine;
-		}
+			if (File.Exists(path))
+			{
+				using StreamReader reader = new(path, encoding, detectEncodingFromByteOrderMarks: true);
+				string existing = reader.ReadToEnd();
+				encoding = reader.CurrentEncoding;
+				newLine = DetectNewLine(existing) ?? newLine;
+			}
 
-		File.WriteAllText(path, string.Join(newLine, lines), encoding);
+			File.WriteAllText(path, string.Join(newLine, lines), encoding);
+			return null;
+		}
+		catch (Exception failure) when (failure is IOException or UnauthorizedAccessException)
+		{
+			return failure.Message;
+		}
 	}
 
 	/// <summary>

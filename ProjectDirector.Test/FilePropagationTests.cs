@@ -329,4 +329,45 @@ public sealed class FilePropagationTests
 			Cleanup(root);
 		}
 	}
+
+	/// <summary>
+	/// Repository A tracks a regular <c>AGENTS.md</c>, and B tracks <c>AGENTS.md -&gt; CLAUDE.md</c>.
+	/// Propagating A's file used to write through B's link, replacing B's <c>CLAUDE.md</c> and
+	/// reporting success. It is a per-repository failure now, and the run goes on to the next one.
+	/// </summary>
+	[TestMethod]
+	public void ASymlinkedDestinationIsReportedAndNeitherTheLinkNorItsTargetIsWritten()
+	{
+		string root = CreateWorkspace();
+		try
+		{
+			string source = Path.Join(root, "A", "AGENTS.md");
+			_ = Directory.CreateDirectory(Path.GetDirectoryName(source)!);
+			File.WriteAllText(source, "A's agents\n");
+
+			string repoB = Path.Join(root, "B");
+			_ = Directory.CreateDirectory(repoB);
+			File.WriteAllText(Path.Join(repoB, "CLAUDE.md"), "B's own CLAUDE.md\n");
+			string link = Path.Join(repoB, "AGENTS.md");
+			_ = File.CreateSymbolicLink(link, "CLAUDE.md");
+
+			KeyValuePair<FullyQualifiedGitHubRepoName, string>[] destinations =
+			[
+				new(Repo("ktsu-dev/B"), link),
+				new(Repo("ktsu-dev/C"), Path.Join(root, "C", "AGENTS.md")),
+			];
+
+			FilePropagationReport report = FilePropagation.Propagate(source, destinations);
+
+			Assert.IsFalse(report.Results[0].Succeeded);
+			StringAssert.Contains(report.Results[0].Failure, "symbolic link");
+			Assert.AreEqual("B's own CLAUDE.md\n", File.ReadAllText(Path.Join(repoB, "CLAUDE.md")), "B's CLAUDE.md should not have been written through the link.");
+			Assert.AreEqual("CLAUDE.md", new FileInfo(link).LinkTarget, "B's link should still be there.");
+			Assert.IsTrue(report.Results[1].Succeeded, "The repository after the refusal should still have been attempted.");
+		}
+		finally
+		{
+			Cleanup(root);
+		}
+	}
 }
