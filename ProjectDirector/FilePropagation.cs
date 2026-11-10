@@ -154,6 +154,12 @@ internal static class FilePropagation
 			return new(repo, destination, "the destination has no containing directory");
 		}
 
+		string? link = SymbolicLinks.RefuseToWriteThrough(destination);
+		if (link is not null)
+		{
+			return new(repo, destination, link);
+		}
+
 		try
 		{
 			_ = Directory.CreateDirectory(directory);
