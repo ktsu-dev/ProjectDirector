@@ -26,6 +26,6 @@
     <PackageVersion Include="Microsoft.Testing.Extensions.Retry" Version="1.7.2" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
     <PackageVersion Include="Polyfill" Version="11.4.5" />
-    <PackageVersion Include="TestableIO.System.IO.Abstractions.TestingHelpers" Version="22.3.0" />
+    <PackageVersion Include="TestableIO.System.IO.Abstractions.TestingHelpers" Version="23.0.0" />
   </ItemGroup>
 </Project>
