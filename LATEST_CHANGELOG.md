@@ -1,8 +1,7 @@
-## v1.5.4 (patch)
+## v1.5.5-pre.1 (prerelease)
 
-Changes since v1.5.3:
+Changes since v1.5.4:
 
-- List a compared folder that is a file or unreadable as empty [patch] (#528) (matt-edmondson)
-- Refuse to propagate or take a diff block through a symlinked destination [patch] (#529) (matt-edmondson)
-- List each file in a new folder in the commit prompt [patch] (#530) (matt-edmondson)
+- Bump TestableIO.System.IO.Abstractions.TestingHelpers from 22.3.0 to 23.0.0 (dependabot[bot])
+- Bump the ktsu group with 16 updates (dependabot[bot])
 
