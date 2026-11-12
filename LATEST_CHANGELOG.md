@@ -1,7 +1,6 @@
-## v1.5.5-pre.1 (prerelease)
+## v1.5.5-pre.2 (prerelease)
 
-Changes since v1.5.4:
+Changes since v1.5.5-pre.1:
 
-- Bump TestableIO.System.IO.Abstractions.TestingHelpers from 22.3.0 to 23.0.0 (dependabot[bot])
-- Bump the ktsu group with 16 updates (dependabot[bot])
+- Bump MSTest.Sdk from 4.5.2 to 4.5.3 (dependabot[bot])
 
