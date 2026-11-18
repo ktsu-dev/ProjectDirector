@@ -1,6 +1,6 @@
-## v1.5.5-pre.2 (prerelease)
+## v1.5.5-pre.3 (prerelease)
 
-Changes since v1.5.5-pre.1:
+Changes since v1.5.5-pre.2:
 
-- Bump MSTest.Sdk from 4.5.2 to 4.5.3 (dependabot[bot])
+- Bump TestableIO.System.IO.Abstractions.TestingHelpers from 23.0.0 to 23.0.1 (dependabot[bot])
 
