@@ -25,7 +25,7 @@
     <PackageVersion Include="Microsoft.Testing.Extensions.HotReload" Version="1.7.2" />
     <PackageVersion Include="Microsoft.Testing.Extensions.Retry" Version="1.7.2" />
     <PackageVersion Include="Octokit" Version="14.0.0" />
-    <PackageVersion Include="Polyfill" Version="11.4.5" />
+    <PackageVersion Include="Polyfill" Version="12.0.0" />
     <PackageVersion Include="TestableIO.System.IO.Abstractions.TestingHelpers" Version="23.1.0" />
   </ItemGroup>
 </Project>
